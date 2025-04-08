@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #define MAXROWS 100
+typedef unsigned long long int Row;
 
 struct Hint;
 struct Hint {
@@ -20,18 +21,18 @@ struct Game {
 	int ncols;
 	struct Hint **rowhints;
 	struct Hint **colhints;
-	unsigned long long int *rowcontents;
-	unsigned long long int *rowfilledmasks;
-	unsigned long long int *rowrejectmasks; /* crossed-out cells */
+	Row *rcontents;
+	Row *rfilled;
+	Row *rrejected; /* Row masks of crossed-out cell */
 	int posx, posy;
 };
 
-static inline unsigned long long int binStoint(const char *s);
-static void inttobinS(unsigned long long int row, char * buffer);
+static inline Row binStoint(const char *s);
+static void inttobinS(Row r, char * buffer);
 
 static void parselevel(); // todo
-static inline int rowlength(unsigned long long int row);
-static struct Hint *findrowhints(unsigned long long int row);
+static inline int rowlength(Row r);
+static struct Hint *findrowhints(Row r);
 static void printhints(struct Hint *first);
 static char cellstatus(int x, int y); // todo: need full Game object first
 static void markcell(int x, int y, int reject); /* reject: 0=fill, 1=reject */ //todo
@@ -42,47 +43,47 @@ static struct Game game = {
 	.posy = 0
 };
 
-static unsigned long long int
+static Row
 binStoint(const char *s)
 {
-        unsigned long long int i = 0;
+        Row r = 0;
         while (*s) {
-                i <<= 1;
-                i += *s++ - '0';
+                r <<= 1;
+                r += *s++ - '0';
         }
-        return i;
+        return r;
 }
 
 static void
-inttobinS(unsigned long long int row, char *buffer)
+inttobinS(Row r, char *buffer)
 {
 	buffer += game.ncols;
 	*buffer = '\0';
-	while (row ^ 1) {
-		*--buffer = (row & 1) + '0';
-		row >>= 1;
+	while (r ^ 1) {
+		*--buffer = (r & 1) + '0';
+		r >>= 1;
 	}
 }
 
 static inline int
-rowlength(unsigned long long int row)
+rowlength(Row r)
 {
 	int length = 0;
-	while (row >> length) {
+	while (r >> length) {
 		length += 1;
 	}
 	return length - 1; /* first 1 allows for leading 0s in row content */
 }
 
 static struct Hint
-*findrowhints(unsigned long long int row)
+*findrowhints(Row r)
 {
-	int maxhints = rowlength(row) / 2 + 1;
+	int maxhints = rowlength(r) / 2 + 1;
 	int hints[maxhints];
 	int nhints = 0;
 	int chain = 0;
-	for (int i = 0; i < rowlength(row); i++) {
-		if (row >> i & 1) {
+	for (int i = 0; i < rowlength(r); i++) {
+		if (r >> i & 1) {
 			if (!chain)
 				nhints++;
 			chain++;
@@ -126,7 +127,7 @@ parselevel(const char* levelpath)
 		exit(1);
 	}
 	struct Hint *hints[MAXROWS];
-	unsigned long long int rowcontents[MAXROWS];
+	Row rcontents[MAXROWS];
 	char *buffer = NULL;
 	char *line = NULL;
 	ssize_t llength = 0;
@@ -154,15 +155,15 @@ parselevel(const char* levelpath)
 		}
 		strlcpy(line, buffer + 1, game.ncols + 1);
 		hints[nrows] = findrowhints(binStoint(line - 1));
-		rowcontents[nrows] = binStoint(line - 1);
+		rcontents[nrows] = binStoint(line - 1);
 	}
 	free(buffer);
 	free(--line);
 	game.nrows = --nrows; // last row has no level info
 	game.rowhints = malloc(sizeof(void *) * nrows);
 	memcpy(game.rowhints, hints, sizeof(void *) * nrows);
-	game.rowcontents = malloc(sizeof(unsigned long long int) * nrows);
-	memcpy(game.rowcontents, rowcontents, sizeof(void *) * nrows);
+	game.rcontents = malloc(sizeof(Row) * nrows);
+	memcpy(game.rcontents, rcontents, sizeof(void *) * nrows);
 }
 
 int
@@ -180,7 +181,7 @@ main ()
 	char *buffer = malloc(sizeof(char) * game.ncols + 1);
 	for (int i = 0; i < game.nrows; i++) {
 		printf("%.2d: ", i + 1);
-		inttobinS(game.rowcontents[i], buffer);
+		inttobinS(game.rcontents[i], buffer);
 		printf("%s\n", buffer);
 	}
 	return 0;
