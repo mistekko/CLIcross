@@ -21,9 +21,9 @@ struct Game {
 	int ncols;
 	struct Hint **rowhints;
 	struct Hint **colhints;
-	Row *rcontents;
-	Row *rfilled;
-	Row *rrejected; /* Row masks of crossed-out cell */
+	Row *level; /* all level data */
+	Row *filledmasks;
+	Row *rejectedmasks; /* Row masks of crossed-out cell */
 	int posx, posy;
 };
 
@@ -32,7 +32,9 @@ static void inttobinS(Row r, char * buffer);
 
 static void parselevel(); // todo
 static inline int rowlength(Row r);
+static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
+static struct Hint *findcolhints(Row *level, int col);
 static void printhints(struct Hint *first);
 static char cellstatus(int x, int y); // todo: need full Game object first
 static void markcell(int x, int y, int reject); /* reject: 0=fill, 1=reject */ //todo
@@ -75,14 +77,35 @@ rowlength(Row r)
 	return length - 1; /* first 1 allows for leading 0s in row content */
 }
 
-static struct Hint
-*findrowhints(Row r)
+struct Hint *
+chainhints(int *hints, int nhints)
 {
-	int maxhints = rowlength(r) / 2 + 1;
-	int hints[maxhints];
+
+	struct Hint *first = malloc (sizeof(struct Hint));
+	if (!first)
+		exit(1);
+	first->hint = 0;
+	if (!nhints)
+		return first;
+	first->hint = hints[nhints - 1];
+	struct Hint *this = first;
+	for (int i = nhints - 2; i >= 0; i--) {
+		struct Hint *next = malloc (sizeof(struct Hint));
+		if (!next)
+			exit (1);
+		next->hint = hints[i];
+		this->next = next;
+		this = next;
+	}
+	return first;
+}
+
+struct Hint *
+findrowhints(Row r)
+{
+	int hints[game.ncols / 2 + 1];
 	int nhints = 0;
-	int chain = 0;
-	for (int i = 0; i < rowlength(r); i++) {
+	for (int i = 0, chain = 0; i < game.ncols; i++) {
 		if (r >> i & 1) {
 			if (!chain)
 				nhints++;
@@ -91,23 +114,24 @@ static struct Hint
 		} else
 			chain = 0;
 	}
-	struct Hint *first = malloc (sizeof(struct Hint));
-	if (first == 0)
-		exit(1);
-	first->hint = 0;
-	if (!nhints)
-		return first;
-	first->hint = hints[0];
-	struct Hint *this = first;
-	for (int i = 1; i < nhints; i++) {
-		struct Hint *next = malloc (sizeof(struct Hint));
-		if (next == 0)
-			exit (1);
-		next->hint = hints[i];
-		this->next = next;
-		this = next;
+	return chainhints(hints, nhints);
+}
+
+struct Hint *
+findcolwhints(Row *level, int col)
+{
+	int hints[game.nrows / 2 + 1];
+	int nhints = 0;
+	for (int i = 0, chain = 0; i < game.nrows; i++) {
+		if (level[i] >> (game.ncols - col) & 1) {
+			if (!chain)
+				nhints++;
+			chain++;
+			hints[nhints-1] = chain;
+		} else
+			chain = 0;
 	}
-	return first;
+	return chainhints(hints, nhints);
 }
 
 static void
@@ -127,7 +151,7 @@ parselevel(const char* levelpath)
 		exit(1);
 	}
 	struct Hint *hints[MAXROWS];
-	Row rcontents[MAXROWS];
+	Row level[MAXROWS];
 	char *buffer = NULL;
 	char *line = NULL;
 	ssize_t llength = 0;
@@ -155,15 +179,15 @@ parselevel(const char* levelpath)
 		}
 		strlcpy(line, buffer + 1, game.ncols + 1);
 		hints[nrows] = findrowhints(binStoint(line - 1));
-		rcontents[nrows] = binStoint(line - 1);
+		level[nrows] = binStoint(line - 1);
 	}
 	free(buffer);
 	free(--line);
 	game.nrows = --nrows; // last row has no level info
 	game.rowhints = malloc(sizeof(void *) * nrows);
 	memcpy(game.rowhints, hints, sizeof(void *) * nrows);
-	game.rcontents = malloc(sizeof(Row) * nrows);
-	memcpy(game.rcontents, rcontents, sizeof(void *) * nrows);
+	game.level = malloc(sizeof(Row) * nrows);
+	memcpy(game.level, level, sizeof(void *) * nrows);
 }
 
 int
@@ -181,7 +205,7 @@ main ()
 	char *buffer = malloc(sizeof(char) * game.ncols + 1);
 	for (int i = 0; i < game.nrows; i++) {
 		printf("%.2d: ", i + 1);
-		inttobinS(game.rcontents[i], buffer);
+		inttobinS(game.level[i], buffer);
 		printf("%s\n", buffer);
 	}
 	return 0;
