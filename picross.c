@@ -33,8 +33,8 @@ static struct Hint *findcolhints(Row *level, int col);
 // returns largest number of hints held by a col/row, which we use to determine how much space to allocate to hint printing
 static int mosthints(struct Hint **hintarr, int nhints);
 static void printhints(struct Hint *first);
-static char cellstatus(int x, int y); // todo: need full Game object first; initialise cells as zero; then we can start talking
-static void markcell(int x, int y, int reject); /* reject: 0=fill, 1=reject */ //todo; need cellstatus first!
+static inline int cellstatus(int x, int y); /* 0=empty, 1=filled, 2=rejected */
+static void markcell(int x, int y, int reject);
 static void parselevel(const char *path);
 
 static struct Game game = {
@@ -140,6 +140,22 @@ printhints(struct Hint *first)
 	printf("\n");
 }
 
+static inline int
+cellstatus(int x, int y)
+{
+	return ((game.filledmasks[y] >> (game.ncols - x)) & 1)
+		+ ((game.rejectmasks[y] >> (game.ncols - x)) & 1) * 2;
+}
+
+static inline void
+markcell(int x, int y, int reject)
+{
+	if (reject)
+		game.rejectmasks[y] |= (1 << (game.ncols - x));
+	else
+		game.filledmasks[y] |= (1 << (game.ncols - x));
+}
+
 static void
 parselevel(const char* levelpath)
 {
@@ -190,33 +206,45 @@ parselevel(const char* levelpath)
 	for (int i = 0; i < game.ncols; i++)
 		game.colhints[i] = findcolhints(game.level, i+1);
 	game.filledmasks = malloc(sizeof(Row) * nrows);
-	// memset to zero
 	game.rejectmasks = malloc(sizeof(Row) * nrows);
-	// memset to zero
+	memset(game.filledmasks, 0, sizeof(Row) * nrows);
+	memset(game.rejectmasks, 0, sizeof(Row) * nrows);
 }
 
 int
 main (void)
 {
+	/* level parsing */
 	parselevel("./level.pic");
 	printf("rows: %d\n", game.nrows);
 	printf("cols: %d\n", game.ncols);
-
-	for (int i = 0; i < game.nrows; i++) {
-		printf("%.2d: ", i + 1);
-		printhints(game.rowhints[i]);
-	}
-
-	for (int i = 0; i < game.ncols; i++) {
-		printf("%.2d: ", i + 1);
-		printhints(game.colhints[i]);
-	}
-
 	char *buffer = malloc(sizeof(char) * game.ncols + 1);
 	for (int i = 0; i < game.nrows; i++) {
 		printf("%.2d: ", i + 1);
 		inttobinS(game.level[i], buffer);
 		printf("%s\n", buffer);
 	}
+
+	/* rowhints */
+	for (int i = 0; i < game.nrows; i++) {
+		printf("%.2d: ", i + 1);
+		printhints(game.rowhints[i]);
+	}
+
+	/* colhints */
+	for (int i = 0; i < game.ncols; i++) {
+		printf("%.2d: ", i + 1);
+		printhints(game.colhints[i]);
+	}
+
+	/* cellstatus, markcell */
+	markcell(4, 5, 0);
+	markcell(9, 7, 1);
+	for (int y = 0; y < game.nrows; y++) {
+		for (int x = 0; x < game.ncols; x++)
+			printf("%d ", cellstatus(x, y));
+		puts("");
+	}
+
 	return 0;
 }
