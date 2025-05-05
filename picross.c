@@ -26,15 +26,16 @@ struct Game {
 
 static inline Row binStoint(const char *s);
 static void inttobinS(Row r, char * buffer);
-
 static inline int rowlength(Row r);
 static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
 static struct Hint *findcolhints(Row *level, int col);
+// returns largest number of hints held by a col/row, which we use to determine how much space to allocate to hint printing
+static int mosthints(struct Hint **hintarr, int nhints);
 static void printhints(struct Hint *first);
 static char cellstatus(int x, int y); // todo: need full Game object first; initialise cells as zero; then we can start talking
 static void markcell(int x, int y, int reject); /* reject: 0=fill, 1=reject */ //todo; need cellstatus first!
-static void parselevel();
+static void parselevel(const char *path);
 
 static struct Game game = {
 	.posx = 0,
@@ -189,11 +190,13 @@ parselevel(const char* levelpath)
 	for (int i = 0; i < game.ncols; i++)
 		game.colhints[i] = findcolhints(game.level, i+1);
 	game.filledmasks = malloc(sizeof(Row) * nrows);
+	// memset to zero
 	game.rejectmasks = malloc(sizeof(Row) * nrows);
+	// memset to zero
 }
 
 int
-main ()
+main (void)
 {
 	parselevel("./level.pic");
 	printf("rows: %d\n", game.nrows);
