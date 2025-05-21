@@ -3,21 +3,23 @@
 #include <string.h>
 #include <errno.h>
 
-#define MAXROWS 100
+#define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
+#define MAXROWS    100
+#define CHARPERCOL 2
+#define LINEPERROW 1
 
 typedef unsigned long long int Row;
 
-struct Hint;
 struct Hint {
 	int hint;
 	struct Hint* next;
 };
 
 struct Game {
-	int nrows;
-	int ncols;
 	struct Hint **rowhints;
 	struct Hint **colhints;
+	int nrows, ncols;
+	int maxrowhints, maxcolhints;
 	Row *level; /* level row data as parsed by parselevel */
 	Row *filledmasks;
 	Row *rejectmasks; /* Row masks of crossed-out cell */
@@ -25,17 +27,21 @@ struct Game {
 };
 
 static inline Row binStoint(const char *s);
-static void inttobinS(Row r, char * buffer);
+static void inttobinS(char * buffer, Row r);
 static inline int rowlength(Row r);
 static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
 static struct Hint *findcolhints(Row *level, int col);
-// returns largest number of hints held by a col/row, which we use to determine how much space to allocate to hint printing
-static int mosthints(struct Hint **hintarr, int nhints);
+static int mosthints(struct Hint **hintarr, int nheads);
 static void printhints(struct Hint *first);
 static inline int cellstatus(int x, int y); /* 0=empty, 1=filled, 2=rejected */
 static void markcell(int x, int y, int reject);
 static void parselevel(const char *path);
+static void printcolshints(void);
+static void printrowshints(void);
+static void printcells(void);
+static void printboard(void); // print entire board!!
+static void update(void); // change game state according to events and then update board
 
 static struct Game game = {
 	.posx = 0,
@@ -54,7 +60,7 @@ binStoint(const char *s)
 }
 
 static void
-inttobinS(Row r, char *buffer)
+inttobinS(char *buffer, Row r)
 {
 	buffer += game.ncols;
 	*buffer = '\0';
@@ -68,10 +74,10 @@ static inline int
 rowlength(Row r)
 {
 	int length = 0;
-	while (r >> length) {
+	while (r >> length)
 		length += 1;
-	}
-	return length - 1; /* first 1 allows for leading 0s in row content */
+	/* 01 is represented as 1, so we use 101 and discard first digit */
+	return length - 1;
 }
 
 struct Hint *
@@ -82,15 +88,17 @@ chainhints(int *hints, int nhints)
 	if (!first)
 		exit(1);
 	first->hint = 0;
+	first->next = NULL;
 	if (!nhints)
 		return first;
 	first->hint = hints[nhints - 1];
 	struct Hint *this = first;
 	for (int i = nhints - 2; i >= 0; i--) {
 		struct Hint *next = malloc(sizeof(struct Hint));
-		if (!next)
+		if (next == NULL)
 			exit (1);
 		next->hint = hints[i];
+		next->next = NULL;
 		this->next = next;
 		this = next;
 	}
@@ -128,15 +136,36 @@ findcolhints(Row *level, int col)
 		} else
 			chain = 0;
 	}
-	return chainhints(hints, nhints);
+	int hintsreversed[nhints];
+	for (int i = 0; i < nhints; i++)
+		hintsreversed[i] = hints[nhints - 1 - i];
+	return chainhints(hintsreversed, nhints);
+}
+
+static inline int
+chainlength(struct Hint *first)
+{
+	int i = 1;
+	for (struct Hint *this = first; this->next; this = this->next)
+		i++;
+	return i;
+}
+
+static inline int
+mosthints(struct Hint **hints, int nheads)
+{
+	int most = 0;
+	for (int i = 0; i < nheads; i++)
+		if (chainlength(hints[i]) > most)
+			most = chainlength(hints[i]);
+	return most;
 }
 
 static void
 printhints(struct Hint *first)
 {
-	for (struct Hint *this = first;	this; this = this->next) {
+	for (struct Hint *this = first;	this; this = this->next)
 		printf("%d ", this->hint);
-	}
 	printf("\n");
 }
 
@@ -197,19 +226,81 @@ parselevel(const char* levelpath)
 	}
 	free(buffer);
 	free(--line);
+
 	game.nrows = --nrows; /* ignore last row (see level syntax) */
-	game.rowhints = malloc(sizeof(void *) * nrows);
-	memcpy(game.rowhints, hints, sizeof(void *) * nrows);
-	game.level = malloc(sizeof(Row) * nrows);
-	memcpy(game.level, level, sizeof(void *) * nrows);
-	game.colhints = malloc(sizeof(void *) * game.ncols);
-	for (int i = 0; i < game.ncols; i++)
-		game.colhints[i] = findcolhints(game.level, i+1);
+
+	game.rowhints    = malloc(sizeof(void *) * nrows);
+	game.colhints    = malloc(sizeof(void *) * game.ncols);
+	game.level       = malloc(sizeof(Row) * nrows);
 	game.filledmasks = malloc(sizeof(Row) * nrows);
 	game.rejectmasks = malloc(sizeof(Row) * nrows);
+
+	memcpy(game.rowhints, hints, sizeof(void *) * nrows);
+	memcpy(game.level, level, sizeof(void *) * nrows);
 	memset(game.filledmasks, 0, sizeof(Row) * nrows);
 	memset(game.rejectmasks, 0, sizeof(Row) * nrows);
+
+	for (int i = 0; i < game.ncols; i++)
+		game.colhints[i] = findcolhints(game.level, i+1);
+
+	game.maxcolhints = mosthints(game.colhints, game.ncols);
+	game.maxrowhints = mosthints(game.rowhints, game.nrows);
 }
+
+static void
+printcolshints(void)
+{
+	DONTIMES(putchar('\n'), game.maxcolhints - 1);
+	DONTIMES(putchar(' '),  game.maxrowhints * 3 - 1 + 2);
+	for (int i = 0; i < game.ncols; i++) {
+		fputs("\033[s", stdout);
+		struct Hint *this = game.colhints[i];
+		for (; this != NULL; this = this->next)
+			printf("%*d\033[1A\033[%dD",
+			       CHARPERCOL,
+			       this->hint,
+			       CHARPERCOL);
+		printf("\033[u\033[%dC", CHARPERCOL);
+	}
+	putchar('\n');
+	DONTIMES(putchar('-'), game.maxrowhints * 3);
+	putchar('+');
+	DONTIMES(putchar('-'), game.ncols * CHARPERCOL);
+	putchar('\n');
+}
+
+static void
+printrowshints(void)
+{
+	DONTIMES(putchar(' '), (game.maxrowhints - 1) * 3);
+	for (int i = 0; i < game.nrows; i++) {
+		fputs("\033[s", stdout);
+		struct Hint *this = game.rowhints[i];
+		for (; this != NULL; this = this->next)
+			printf("%2d\033[5D", this->hint);
+		DONTIMES(LINEPERROW, putchar('\n'));
+		printf("\033[u\033[%dB", LINEPERROW);
+	}
+	fputs("\033[1A\033[3C", stdout);
+	for (int i = 0; i < game.nrows * LINEPERROW + game.maxcolhints; i++) {
+		if (i == game.nrows * LINEPERROW)
+			fputs("\033[s\033[1A", stdout);
+		fputs("|\033[1A\033[1D", stdout);
+	}
+	fputs("\033[u\033[1C\033[1B", stdout);
+}
+
+static void
+printcells(void)
+{
+	for (int i = 0; i < game.nrows; i++) {
+		fputs("\033[s", stdout);
+		DONTIMES(printf("%*d", CHARPERCOL, game.level[i] >> _IDX & 1),
+			 game.ncols);
+		printf("\033[u\033[%dB", LINEPERROW);
+	}
+}
+
 
 int
 main (void)
@@ -220,20 +311,20 @@ main (void)
 	printf("cols: %d\n", game.ncols);
 	char *buffer = malloc(sizeof(char) * game.ncols + 1);
 	for (int i = 0; i < game.nrows; i++) {
-		printf("%.2d: ", i + 1);
-		inttobinS(game.level[i], buffer);
+		printf("%2d: ", i + 1);
+		inttobinS(buffer, game.level[i]);
 		printf("%s\n", buffer);
 	}
 
 	/* rowhints */
 	for (int i = 0; i < game.nrows; i++) {
-		printf("%.2d: ", i + 1);
+		printf("%2d: ", i + 1);
 		printhints(game.rowhints[i]);
 	}
 
 	/* colhints */
 	for (int i = 0; i < game.ncols; i++) {
-		printf("%.2d: ", i + 1);
+		printf("%2d: ", i + 1);
 		printhints(game.colhints[i]);
 	}
 
@@ -245,6 +336,11 @@ main (void)
 			printf("%d ", cellstatus(x, y));
 		puts("");
 	}
+
+	fputs("\033[2J\033[H", stdout);
+	printcolshints();
+	printrowshints();
+	printcells();
 
 	return 0;
 }
