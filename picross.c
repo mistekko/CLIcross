@@ -295,7 +295,9 @@ printcells(void)
 {
 	for (int i = 0; i < game.nrows; i++) {
 		fputs("\033[s", stdout);
-		DONTIMES(printf("%*d", CHARPERCOL, game.level[i] >> _IDX & 1),
+		DONTIMES(printf("%*u",
+			        CHARPERCOL,
+				(unsigned int) game.level[i] >> _IDX & 1),
 			 game.ncols);
 		printf("\033[u\033[%dB", LINEPERROW);
 	}
