@@ -19,7 +19,8 @@ struct Hint {
 struct Game {
 	struct Hint **rowhints;
 	struct Hint **colhints;
-	int nrows, ncols;	int maxrowhints, maxcolhints;
+	int nrows, ncols;
+	int maxrowhints, maxcolhints;
 	Row *level; /* level row data as parsed by parselevel */
 	Row *filledmasks;
 	Row *rejectmasks; /* Row masks of crossed-out cell */
@@ -307,9 +308,8 @@ printcells(void)
 int
 main (void)
 {
-	parselevel("./level.pic");
-
-	fputs("\033[2J\033[H", stdout);
+	parselevel("level.pic");
+	/* fputs("\033[2J\033[H", stdout); */
 	printcolshints();
 	printrowshints();
 	printcells();
