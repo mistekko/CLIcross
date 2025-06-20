@@ -181,9 +181,9 @@ static inline void
 markcell(int x, int y, int reject)
 {
 	if (reject)
-		game.rejectmasks[y] |= (1 << (game.ncols - x));
+		game.rejectmasks[y] ^= (1 << (game.ncols - x));
 	else
-		game.filledmasks[y] |= (1 << (game.ncols - x));
+		game.filledmasks[y] ^= (1 << (game.ncols - x));
 }
 
 static void
