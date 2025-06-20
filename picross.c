@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 
+
 #define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
 #define MAXROWS    100
 #define CHARPERCOL 2
@@ -277,7 +278,7 @@ printrowshints(void)
 		struct Hint *this = game.rowhints[i];
 		for (; this != NULL; this = this->next)
 			printf("%2d\033[5D", this->hint);
-		DONTIMES(LINEPERROW, putchar('\n'));
+		DONTIMES(putchar('\n'), LINEPERROW);
 		printf("\033[u\033[%dB", LINEPERROW);
 	}
 	fputs("\033[1A\033[3C", stdout);
