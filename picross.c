@@ -112,7 +112,7 @@ findrowhints(Row r)
 	int hints[game.ncols / 2 + 1];
 	int nhints = 0;
 	for (int i = 0, chain = 0; i < game.ncols; i++) {
-		if (r >> i & 1) {
+		if (r >> (game.ncols - 1 - i) & 1) {
 			if (!chain)
 				nhints++;
 			chain++;
@@ -297,9 +297,10 @@ printcells(void)
 	for (int i = 0; i < game.nrows; i++) {
 		fputs("\033[s", stdout);
 		DONTIMES(printf("%*u",
-			        CHARPERCOL,
-				(unsigned int) game.level[i] >> _IDX & 1),
-			 game.ncols);
+		                CHARPERCOL,
+		                (unsigned int) game.level[i]
+				  >> (game.ncols - 1 - _IDX) & 1),
+		         game.ncols);
 		printf("\033[u\033[%dB", LINEPERROW);
 	}
 }
