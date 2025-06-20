@@ -3,11 +3,14 @@
 #include <string.h>
 #include <errno.h>
 
-
-#define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
 #define MAXROWS    100
 #define CHARPERCOL 2
 #define LINEPERROW 1
+
+#define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
+#define CHARATCELL(x, y) \
+	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
+	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? 'x' : '-'
 
 typedef unsigned long long int Row;
 
@@ -181,9 +184,9 @@ static inline void
 markcell(int x, int y, int reject)
 {
 	if (reject)
-		game.rejectmasks[y] ^= (1 << (game.ncols - x));
+		game.rejectmasks[y] ^= (1 << (game.ncols - x - 1));
 	else
-		game.filledmasks[y] ^= (1 << (game.ncols - x));
+		game.filledmasks[y] ^= (1 << (game.ncols - x - 1));
 }
 
 static void
@@ -296,11 +299,8 @@ printcells(void)
 {
 	for (int i = 0; i < game.nrows; i++) {
 		fputs("\033[s", stdout);
-		DONTIMES(printf("%*u",
-		                CHARPERCOL,
-		                (unsigned int) game.level[i]
-				  >> (game.ncols - 1 - _IDX) & 1),
-		         game.ncols);
+		DONTIMES(printf(" %c",CHARATCELL(_IDX, i)),
+			 game.ncols)
 		printf("\033[u\033[%dB", LINEPERROW);
 	}
 }
@@ -313,6 +313,11 @@ main (void)
 	/* fputs("\033[2J\033[H", stdout); */
 	printcolshints();
 	printrowshints();
+
+	markcell(0, 0, 0);
+	markcell(1, 0, 1);
+
+
 	printcells();
 
 	return 0;
