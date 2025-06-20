@@ -18,8 +18,7 @@ struct Hint {
 struct Game {
 	struct Hint **rowhints;
 	struct Hint **colhints;
-	int nrows, ncols;
-	int maxrowhints, maxcolhints;
+	int nrows, ncols;	int maxrowhints, maxcolhints;
 	Row *level; /* level row data as parsed by parselevel */
 	Row *filledmasks;
 	Row *rejectmasks; /* Row masks of crossed-out cell */
@@ -305,37 +304,7 @@ printcells(void)
 int
 main (void)
 {
-	/* level parsing */
 	parselevel("./level.pic");
-	printf("rows: %d\n", game.nrows);
-	printf("cols: %d\n", game.ncols);
-	char *buffer = malloc(sizeof(char) * game.ncols + 1);
-	for (int i = 0; i < game.nrows; i++) {
-		printf("%2d: ", i + 1);
-		inttobinS(buffer, game.level[i]);
-		printf("%s\n", buffer);
-	}
-
-	/* rowhints */
-	for (int i = 0; i < game.nrows; i++) {
-		printf("%2d: ", i + 1);
-		printhints(game.rowhints[i]);
-	}
-
-	/* colhints */
-	for (int i = 0; i < game.ncols; i++) {
-		printf("%2d: ", i + 1);
-		printhints(game.colhints[i]);
-	}
-
-	/* cellstatus, markcell */
-	markcell(4, 5, 0);
-	markcell(9, 7, 1);
-	for (int y = 0; y < game.nrows; y++) {
-		for (int x = 0; x < game.ncols; x++)
-			printf("%d ", cellstatus(x, y));
-		puts("");
-	}
 
 	fputs("\033[2J\033[H", stdout);
 	printcolshints();
