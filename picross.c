@@ -11,6 +11,7 @@
 #define CHARATCELL(x, y) \
 	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
 	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? 'x' : '-'
+#define SCRX(x) (x * 3 + 1)
 
 typedef unsigned long long int Row;
 
@@ -30,6 +31,8 @@ struct Game {
 	int posx, posy;
 };
 
+
+
 static inline Row binStoint(const char *s);
 static void inttobinS(char * buffer, Row r);
 static inline int rowlength(Row r);
@@ -38,19 +41,27 @@ static struct Hint *findrowhints(Row r);
 static struct Hint *findcolhints(Row *level, int col);
 static int mosthints(struct Hint **hintarr, int nheads);
 static void printhints(struct Hint *first);
-static inline int cellstatus(int x, int y); /* 0=empty, 1=filled, 2=rejected */
-static void markcell(int x, int y, int reject);
+static void markcell(int x, int y, int reject); // modify s.t. board is updated accordingly
 static void parselevel(const char *path);
+/* new display method start */
+static void makeboard(void); // populate `scr'
+static void selectrow(int y); // write appropriate control characters to row start and end
+static void selectcol(int x); // wrap appropriate cells in control characters
+static void move(int x, int y); // select col/row x/y cells away
+static void printstate(void); // print UI and board
+/* new display method end */
+
+/* begin deprecation */
+static inline int cellstatus(int x, int y); /* 0=empty, 1=filled, 2=rejected */
 static void printcolshints(void);
 static void printrowshints(void);
 static void printcells(void);
-static void printboard(void); // print entire board!!
-static void update(void); // change game state according to events and then update board
+/* end deprecation */
 
-static struct Game game = {
-	.posx = 0,
-	.posy = 0
-};
+static struct Game game = { .posx = 0, .posy = 0 };
+static char **scr;
+static int boardh, hinth, scrh;
+static int boardw, hintw, scrw;
 
 static Row
 binStoint(const char *s)
@@ -249,6 +260,28 @@ parselevel(const char* levelpath)
 
 	game.maxcolhints = mosthints(game.colhints, game.ncols);
 	game.maxrowhints = mosthints(game.rowhints, game.nrows);
+}
+
+static void
+makeboard(void)
+{
+	boardh = game.nrows * LINEPERROW;
+	boardw = game.ncols * CHARPERCOL;
+	hinth  = game.maxcolhints;
+	hintw  = game.maxrowhints * 3;
+	scrh   = boardh + hinth + 1;
+	scrw   = boardw + hintw + 3;
+
+	scr = malloc(sizeof(void *) * scrh);
+	int rowsize = sizeof(char) * SCRX(scrw);
+	DONTIMES(scr[_IDX] = malloc(rowsize);
+		 memset(scr[_IDX], ' ', rowsize);
+		 scr[_IDX][rowsize - 1] = '\0',
+		 scrh)
+
+		// write column hints to screen buffer
+		// write row hints to screen buffer
+		// write 0s to screen buffer in appropriate places
 }
 
 static void
