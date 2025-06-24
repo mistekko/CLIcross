@@ -11,7 +11,9 @@
 #define CHARATCELL(x, y) \
 	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
 	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? 'x' : '-'
-#define SCRX(x) (x * 3 + 1)
+#define SCRX(x) (x * 9 + 4)
+#define SCRCELL(x, y) scr[y][(x) * 9 + 4]
+#define DIGIT(n, d) ((n / ipow(10, d)) % 10)
 
 typedef unsigned long long int Row;
 
@@ -33,6 +35,7 @@ struct Game {
 
 
 
+static int ipow(int base, int power);
 static inline Row binStoint(const char *s);
 static void inttobinS(char * buffer, Row r);
 static inline int rowlength(Row r);
@@ -60,8 +63,17 @@ static void printcells(void);
 
 static struct Game game = { .posx = 0, .posy = 0 };
 static char **scr;
-static int boardh, hinth, scrh;
-static int boardw, hintw, scrw;
+static int scrh, scrw;
+
+static int
+ipow(int base, int pow)
+{
+	int r = 1;
+	for (int i = 0; i < pow; i++) {
+		r *= base;
+	}
+	return r;
+}
 
 static Row
 binStoint(const char *s)
@@ -265,19 +277,40 @@ parselevel(const char* levelpath)
 static void
 makeboard(void)
 {
-	boardh = game.nrows * LINEPERROW;
-	boardw = game.ncols * CHARPERCOL;
-	hinth  = game.maxcolhints;
-	hintw  = game.maxrowhints * 3;
-	scrh   = boardh + hinth + 1;
-	scrw   = boardw + hintw + 3;
+	scrh   = game.nrows * LINEPERROW + game.maxcolhints + 1;
+	scrw   = game.ncols * CHARPERCOL * 9 + game.maxrowhints * 3 * 9 + 27;
+
+	int rpreboardw = game.maxrowhints * 3 + 3;
 
 	scr = malloc(sizeof(void *) * scrh);
-	int rowsize = sizeof(char) * SCRX(scrw);
-	DONTIMES(scr[_IDX] = malloc(rowsize);
-		 memset(scr[_IDX], ' ', rowsize);
-		 scr[_IDX][rowsize - 1] = '\0',
-		 scrh)
+	int rowsize = sizeof(char) * scrw + 1;
+	DONTIMES(scr[_IDX] = malloc(rowsize); scr[_IDX][scrw] = '\0',
+		 scrh);
+
+
+	const char *blankcell = "\033[9m \033[9m";
+
+	for (int i = 0; i < scrh; i++) {
+		for (int j = 0;
+		     j < rpreboardw + game.ncols*CHARPERCOL;
+		     j++) {
+			memcpy(scr[i] + j * 9, blankcell, sizeof(char) * 9);
+		}
+	}
+
+	struct Hint *hint = NULL;
+	for (int i = 0; i < game.ncols; i++) {
+		hint = game.colhints[i];
+		int startcol = rpreboardw + (i + 1) * CHARPERCOL - 1;
+		for (int j = 0; hint; j++) {
+			for (int k = 0; k < CHARPERCOL; k++) {
+				SCRCELL(startcol - k,
+					game.maxcolhints - j - 1)
+					= DIGIT(hint->hint, k) + '0';
+			}
+			hint = hint->next;
+		}
+	}
 
 		// write column hints to screen buffer
 		// write row hints to screen buffer
@@ -344,14 +377,16 @@ main (void)
 {
 	parselevel("level.pic");
 	/* fputs("\033[2J\033[H", stdout); */
-	printcolshints();
-	printrowshints();
 
 	markcell(0, 0, 0);
 	markcell(1, 0, 1);
 
+	/* printcolshints(); */
+	/* printrowshints(); */
+	/* printcells(); */
+	makeboard();
 
-	printcells();
+	DONTIMES(printf("Line %2d: %s\n", _IDX + 1, scr[_IDX]), scrh);
 
 	return 0;
 }
