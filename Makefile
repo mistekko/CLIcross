@@ -1,5 +1,5 @@
 PREFIX = ${HOME}/.local
-CFLAGS = -std=c99 -Wall -Wextra -pedantic -D_POSIX_C_SOURCE=200809L
+CFLAGS = -std=c99 -Wall -Wextra -pedantic -D_POSIX_C_SOURCE=200809L -g
 LDFLAGS = ${LIBS}
 CC = cc
 
