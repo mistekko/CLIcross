@@ -42,6 +42,7 @@ static int mosthints(struct Hint **hintarr, int nheads);
 static void printhints(struct Hint *first);
 static void markcell(int x, int y, int reject); // modify s.t. board is updated accordingly
 static void parselevel(const char *path);
+static void makeboard(void);
 static void updateboard(void);
 static void selectrow(int y); // write appropriate control characters to row start and end
 static void selectcol(int x); // wrap appropriate cells in control characters
@@ -50,7 +51,7 @@ static void printstate(void); // print UI and board
 
 static struct Game game = { .posx = 0, .posy = 0 };
 static char **scr;
-static int scrh, scrw;
+static int scrh, scrw, scrwchars;
 
 static int
 ipow(int base, int pow)
@@ -264,7 +265,7 @@ parselevel(const char* levelpath)
 static void
 makeboard(void)
 {
-	int scrwchars = game.ncols * CHARPERCOL + game.maxrowhints * 3 + 3;
+	scrwchars = game.ncols * CHARPERCOL + game.maxrowhints * 3 + 3;
 	scrh = game.nrows * LINEPERROW + game.maxcolhints + 1;
 	scrw = scrwchars * 9;
 
@@ -297,7 +298,7 @@ makeboard(void)
 	for (int i = 0; i < game.ncols; i++) {
 		hint = game.colhints[i];
 		for (int j = 0; hint; j++) {
-			sprintf(hintbuf, "%*d", CHARPERCOL, hint->hint);
+			sprintf(hintbuf, "%-*d", CHARPERCOL, hint->hint);
 			for (int k = 0; k < CHARPERCOL; k++) {
 				SCRCELL(rpreboardw + i * CHARPERCOL + k,
 					game.maxcolhints - j - 1)
@@ -321,6 +322,18 @@ makeboard(void)
 	}
 }
 
+static void
+updateboard(void)
+{
+	for (int i = 0; i < game.ncols; i++) {
+		for (int j = 0; j < game.nrows; j++) {
+			SCRCELL(i * CHARPERCOL + game.maxrowhints * 3 + 3,
+				j * LINEPERROW + game.maxcolhints + 1)
+				= CHARATCELL(i, j);
+		}
+	}
+}
+
 int
 main (void)
 {
@@ -334,6 +347,14 @@ main (void)
 	/* printrowshints(); */
 	/* printcells(); */
 	makeboard();
+	updateboard();
+
+	DONTIMES(puts(scr[_IDX]), scrh);
+
+	markcell(5, 8, 0);
+	markcell(8, 5, 1);
+
+	updateboard();
 
 	DONTIMES(puts(scr[_IDX]), scrh);
 
