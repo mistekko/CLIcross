@@ -273,8 +273,10 @@ parselevel(const char* levelpath)
 static void
 makeboard(void)
 {
-	scrh   = game.nrows * LINEPERROW + game.maxcolhints + 1;
-	scrw   = game.ncols * CHARPERCOL * 9 + game.maxrowhints * 3 * 9 + 27;
+	int scrwchars = game.ncols * CHARPERCOL + game.maxrowhints * 3 + 3;
+
+	scrh = game.nrows * LINEPERROW + game.maxcolhints + 1;
+	scrw = scrwchars * 9;
 
 	int rpreboardw = game.maxrowhints * 3 + 3;
 
@@ -293,6 +295,11 @@ makeboard(void)
 			memcpy(scr[i] + j * 9, blankcell, sizeof(char) * 9);
 		}
 	}
+
+	DONTIMES(SCRCELL(_IDX, game.maxcolhints) = '-', scrwchars);
+	DONTIMES(SCRCELL(game.maxrowhints * 3 + 1, _IDX) = '|', scrh);
+	SCRCELL(game.maxrowhints * 3 + 1, game.maxcolhints) = '+';
+
 
 	char hintbuf[4];
 	struct Hint *hint = NULL;
@@ -323,7 +330,6 @@ makeboard(void)
 		}
 	}
 
-	// write
 	// write 0s to screen buffer in appropriate places
 }
 
@@ -396,7 +402,7 @@ main (void)
 	/* printcells(); */
 	makeboard();
 
-	DONTIMES(printf("Line %2d: %s\n", _IDX + 1, scr[_IDX]), scrh);
+	DONTIMES(puts(scr[_IDX]), scrh);
 
 	return 0;
 }
