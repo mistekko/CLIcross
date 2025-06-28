@@ -42,20 +42,11 @@ static int mosthints(struct Hint **hintarr, int nheads);
 static void printhints(struct Hint *first);
 static void markcell(int x, int y, int reject); // modify s.t. board is updated accordingly
 static void parselevel(const char *path);
-/* new display method start */
-static void makeboard(void); // populate `scr'
+static void updateboard(void);
 static void selectrow(int y); // write appropriate control characters to row start and end
 static void selectcol(int x); // wrap appropriate cells in control characters
 static void move(int x, int y); // select col/row x/y cells away
 static void printstate(void); // print UI and board
-/* new display method end */
-
-/* begin deprecation */
-static inline int cellstatus(int x, int y); /* 0=empty, 1=filled, 2=rejected */
-static void printcolshints(void);
-static void printrowshints(void);
-static void printcells(void);
-/* end deprecation */
 
 static struct Game game = { .posx = 0, .posy = 0 };
 static char **scr;
@@ -274,7 +265,6 @@ static void
 makeboard(void)
 {
 	int scrwchars = game.ncols * CHARPERCOL + game.maxrowhints * 3 + 3;
-
 	scrh = game.nrows * LINEPERROW + game.maxcolhints + 1;
 	scrw = scrwchars * 9;
 
@@ -329,64 +319,7 @@ makeboard(void)
 			hint = hint->next;
 		}
 	}
-
-	// write 0s to screen buffer in appropriate places
 }
-
-static void
-printcolshints(void)
-{
-	DONTIMES(putchar('\n'), game.maxcolhints - 1);
-	DONTIMES(putchar(' '),  game.maxrowhints * 3 - 1 + 2);
-	for (int i = 0; i < game.ncols; i++) {
-		fputs("\033[s", stdout);
-		struct Hint *this = game.colhints[i];
-		for (; this != NULL; this = this->next)
-			printf("%*d\033[1A\033[%dD",
-			       CHARPERCOL,
-			       this->hint,
-			       CHARPERCOL);
-		printf("\033[u\033[%dC", CHARPERCOL);
-	}
-	putchar('\n');
-	DONTIMES(putchar('-'), game.maxrowhints * 3);
-	putchar('+');
-	DONTIMES(putchar('-'), game.ncols * CHARPERCOL);
-	putchar('\n');
-}
-
-static void
-printrowshints(void)
-{
-	DONTIMES(putchar(' '), (game.maxrowhints - 1) * 3);
-	for (int i = 0; i < game.nrows; i++) {
-		fputs("\033[s", stdout);
-		struct Hint *this = game.rowhints[i];
-		for (; this != NULL; this = this->next)
-			printf("%2d\033[5D", this->hint);
-		DONTIMES(putchar('\n'), LINEPERROW);
-		printf("\033[u\033[%dB", LINEPERROW);
-	}
-	fputs("\033[1A\033[3C", stdout);
-	for (int i = 0; i < game.nrows * LINEPERROW + game.maxcolhints; i++) {
-		if (i == game.nrows * LINEPERROW)
-			fputs("\033[s\033[1A", stdout);
-		fputs("|\033[1A\033[1D", stdout);
-	}
-	fputs("\033[u\033[1C\033[1B", stdout);
-}
-
-static void
-printcells(void)
-{
-	for (int i = 0; i < game.nrows; i++) {
-		fputs("\033[s", stdout);
-		DONTIMES(printf(" %c",CHARATCELL(_IDX, i)),
-			 game.ncols)
-		printf("\033[u\033[%dB", LINEPERROW);
-	}
-}
-
 
 int
 main (void)
