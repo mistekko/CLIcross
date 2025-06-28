@@ -11,9 +11,7 @@
 #define CHARATCELL(x, y) \
 	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
 	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? 'x' : '-'
-#define SCRX(x) (x * 9 + 4)
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
-#define DIGIT(n, d) ((n / ipow(10, d)) % 10)
 
 typedef unsigned long long int Row;
 
@@ -32,8 +30,6 @@ struct Game {
 	Row *rejectmasks; /* Row masks of crossed-out cell */
 	int posx, posy;
 };
-
-
 
 static int ipow(int base, int power);
 static inline Row binStoint(const char *s);
@@ -298,23 +294,37 @@ makeboard(void)
 		}
 	}
 
+	char hintbuf[4];
 	struct Hint *hint = NULL;
+
 	for (int i = 0; i < game.ncols; i++) {
 		hint = game.colhints[i];
-		int startcol = rpreboardw + (i + 1) * CHARPERCOL - 1;
 		for (int j = 0; hint; j++) {
+			sprintf(hintbuf, "%*d", CHARPERCOL, hint->hint);
 			for (int k = 0; k < CHARPERCOL; k++) {
-				SCRCELL(startcol - k,
+				SCRCELL(rpreboardw + i * CHARPERCOL + k,
 					game.maxcolhints - j - 1)
-					= DIGIT(hint->hint, k) + '0';
+					= hintbuf[k];
 			}
 			hint = hint->next;
 		}
 	}
 
-		// write column hints to screen buffer
-		// write row hints to screen buffer
-		// write 0s to screen buffer in appropriate places
+	for (int i = 0; i < game.nrows; i++) {
+		hint = game.rowhints[i];
+		for (int j = 0; hint; j++ ) {
+			sprintf(hintbuf, "%3d", hint->hint);
+			for (int k = 0; k < 3; k++) {
+				SCRCELL((game.maxrowhints - j - 1) * 3 + k,
+					game.maxcolhints + 1 + i)
+					= hintbuf[k];
+			}
+			hint = hint->next;
+		}
+	}
+
+	// write
+	// write 0s to screen buffer in appropriate places
 }
 
 static void
