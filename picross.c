@@ -6,12 +6,17 @@
 #define MAXROWS    100
 #define CHARPERCOL 2
 #define LINEPERROW 1
+#define RESET      "\033[0m"
+#define INVERT     "\033[7m"
+#define NEUTRAL    "\033[9m"
 
 #define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
 #define CHARATCELL(x, y) \
 	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
 	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? 'x' : '-'
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
+#define SCRCC1(x, y) (scr[y] + (x) * 9)
+#define SCRCC2(x, y) (scr[y] + (x) * 9 + 5)
 
 typedef unsigned long long int Row;
 
@@ -31,23 +36,22 @@ struct Game {
 	int posx, posy;
 };
 
-static int ipow(int base, int power);
+static int ipow(int base, int power); // deprecated
 static inline Row binStoint(const char *s);
-static void inttobinS(char * buffer, Row r);
+static void inttobinS(char * buffer, Row r); // deprecated
 static inline int rowlength(Row r);
 static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
 static struct Hint *findcolhints(Row *level, int col);
 static int mosthints(struct Hint **hintarr, int nheads);
-static void printhints(struct Hint *first);
+static void printhints(struct Hint *first); // deprecated
 static void markcell(int x, int y, int reject); // modify s.t. board is updated accordingly
 static void parselevel(const char *path);
 static void makeboard(void);
 static void updateboard(void);
-static void selectrow(int y); // write appropriate control characters to row start and end
-static void selectcol(int x); // wrap appropriate cells in control characters
-static void move(int x, int y); // select col/row x/y cells away
-static void printstate(void); // print UI and board
+static void selectrow(int y);
+static void selectcol(int x);
+static void move(int x, int y);
 
 static struct Game game = { .posx = 0, .posy = 0 };
 static char **scr;
@@ -334,6 +338,52 @@ updateboard(void)
 	}
 }
 
+static void
+selectrow(int y)
+{
+	memcpy(scr[game.posy], NEUTRAL, 4);
+
+	y += game.maxcolhints + 1;
+	game.posy = y;
+	memcpy(SCRCC1(game.posx, y), NEUTRAL, 4);
+	memcpy(SCRCC2(game.posx + CHARPERCOL - 1, y),
+	       NEUTRAL, 4);
+
+	memcpy(scr[y], INVERT, 4);
+	memcpy(scr[y] + scrw - 4, RESET, 4);
+}
+
+static void
+selectcol(int x)
+{
+	for (int i = 0; i < scrh; i++) {
+		if (i != game.posy) {
+			memcpy(SCRCC1(game.posx, i), NEUTRAL, 4);
+			memcpy(SCRCC2(game.posx + CHARPERCOL - 1, i),
+			       NEUTRAL, 4);
+		}
+	}
+
+	x += game.maxrowhints * 3 + 3;
+	game.posx = x;
+
+	for (int i = 0; i < scrh; i++) {
+		if (i != game.posy) {
+			memcpy(SCRCC1(x, i), INVERT, 4);
+			memcpy(SCRCC2(x + CHARPERCOL - 1, i), RESET, 4);
+		}
+	}
+
+
+}
+
+static void
+move(int x, int y)
+{
+	selectrow(y);
+	selectcol(x);
+}
+
 int
 main (void)
 {
@@ -349,10 +399,16 @@ main (void)
 	makeboard();
 	updateboard();
 
+	selectrow(5);
+	selectcol(8);
+
 	DONTIMES(puts(scr[_IDX]), scrh);
 
 	markcell(5, 8, 0);
 	markcell(8, 5, 1);
+
+	selectrow(5);
+	selectcol(3);
 
 	updateboard();
 
