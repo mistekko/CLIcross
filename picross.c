@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <termios.h>
+#include <errno.h>
+#include <unistd.h>
 
 #define MAXROWS    100
 #define CHARPERCOL 2
@@ -52,10 +55,13 @@ static void updateboard(void);
 static void selectrow(int y);
 static void selectcol(int x);
 static void move(int x, int y);
+static void setupterm();
+static void resetterm();
 
 static struct Game game = { .posx = 0, .posy = 0 };
 static char **scr;
 static int scrh, scrw, scrwchars;
+static struct termios inittermstate;
 
 static int
 ipow(int base, int pow)
@@ -384,35 +390,62 @@ move(int x, int y)
 	selectcol(x);
 }
 
+static void
+resetterm() {
+	tcsetattr(STDIN_FILENO, TCSANOW, &inittermstate);
+}
+
+static void
+setupterm() {
+	struct termios newattr;
+
+	errno = 0;
+	if (tcgetattr(STDIN_FILENO, &inittermstate) == -1) {
+		if (errno == ENOTTY)
+			fputs("Unsupported environment. Please use a terminal "
+			      "or a terminal emulator",
+			      stderr); // add opt-out CLI flag
+		exit(1);
+	}
+
+	atexit(resetterm);
+
+	tcgetattr(STDIN_FILENO, &newattr);
+	newattr.c_lflag |= ~(ICANON|ECHO);
+	newattr.c_cc[VMIN] = 1;
+	newattr.c_cc[VTIME] = 0;
+	tcsetattr(STDIN_FILENO, TCSAFLUSH, &newattr);
+}
+
 int
 main (void)
 {
-	parselevel("level.pic");
-	/* fputs("\033[2J\033[H", stdout); */
-
-	markcell(0, 0, 0);
-	markcell(1, 0, 1);
-
-	/* printcolshints(); */
-	/* printrowshints(); */
-	/* printcells(); */
+	parselevel("./level.pic");
+	setupterm();
 	makeboard();
-	updateboard();
-
-	selectrow(5);
-	selectcol(8);
-
+	fputs("\033[2J\033[H", stdout);
 	DONTIMES(puts(scr[_IDX]), scrh);
 
-	markcell(5, 8, 0);
-	markcell(8, 5, 1);
+	char input;
+	int escapedsequence = 0;
 
-	selectrow(5);
-	selectcol(3);
+	while (1) {
+		read(STDIN_FILENO, &input, 1);
+		if (input == '\003' || input == '\004')
+			exit(0);
+		else if (input == '\033')
+			escapedsequence = 1;
+		else if (input == '[' && escapedsequence) {
+			puts("Complex inputs are not yet handled");
+			escapedsequence = 0;
+		}
+		else {
+			updateboard();
+			fputs("\033[2J\033[H", stdout);
+			DONTIMES(puts(scr[_IDX]), scrh);
+		}
+	}
 
-	updateboard();
-
-	DONTIMES(puts(scr[_IDX]), scrh);
 
 	return 0;
 }
