@@ -3,7 +3,6 @@
 #include <string.h>
 #include <errno.h>
 #include <termios.h>
-#include <errno.h>
 #include <unistd.h>
 
 #define MAXROWS    100
@@ -347,47 +346,43 @@ updateboard(void)
 static void
 selectrow(int y)
 {
-	memcpy(scr[game.posy], NEUTRAL, 4);
+	memcpy(scr[game.posy * LINEPERROW + game.maxcolhints + 1], NEUTRAL, 4);
 
-	y += game.maxcolhints + 1;
 	game.posy = y;
-	memcpy(SCRCC1(game.posx, y), NEUTRAL, 4);
-	memcpy(SCRCC2(game.posx + CHARPERCOL - 1, y),
+	memcpy(SCRCC1(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3, y * LINEPERROW + game.maxcolhints + 1), NEUTRAL, 4);
+	memcpy(SCRCC2(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3 + CHARPERCOL - 1, y * LINEPERROW + game.maxcolhints + 1),
 	       NEUTRAL, 4);
 
-	memcpy(scr[y], INVERT, 4);
-	memcpy(scr[y] + scrw - 4, RESET, 4);
+	memcpy(scr[y * LINEPERROW + game.maxcolhints + 1], INVERT, 4);
+	memcpy(scr[y * LINEPERROW + game.maxcolhints + 1] + scrw - 4, RESET, 4);
 }
 
 static void
 selectcol(int x)
 {
 	for (int i = 0; i < scrh; i++) {
-		if (i != game.posy) {
-			memcpy(SCRCC1(game.posx, i), NEUTRAL, 4);
-			memcpy(SCRCC2(game.posx + CHARPERCOL - 1, i),
+		if (i != game.posy * LINEPERROW + game.maxcolhints + 1) {
+			memcpy(SCRCC1(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3, i), NEUTRAL, 4);
+			memcpy(SCRCC2(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3 + CHARPERCOL - 1, i),
 			       NEUTRAL, 4);
 		}
 	}
 
-	x += game.maxrowhints * 3 + 3;
 	game.posx = x;
-
 	for (int i = 0; i < scrh; i++) {
-		if (i != game.posy) {
-			memcpy(SCRCC1(x, i), INVERT, 4);
-			memcpy(SCRCC2(x + CHARPERCOL - 1, i), RESET, 4);
+		if (i != game.posy * LINEPERROW + game.maxcolhints + 1) {
+			memcpy(SCRCC1(x * CHARPERCOL + game.maxrowhints * 3 + 3, i), INVERT, 4);
+			memcpy(SCRCC2(x * CHARPERCOL + game.maxrowhints * 3 + 3 + CHARPERCOL - 1, i),
+			       RESET, 4);
 		}
 	}
-
-
 }
 
 static void
 move(int x, int y)
 {
-	selectrow(y);
-	selectcol(x);
+	selectrow(game.posy + y);
+	selectcol(game.posx + x);
 }
 
 static void
@@ -423,6 +418,8 @@ main (void)
 	parselevel("./level.pic");
 	setupterm();
 	makeboard();
+	updateboard();
+	move(0, 0);
 	fputs("\033[2J\033[H", stdout);
 	DONTIMES(puts(scr[_IDX]), scrh);
 
@@ -433,17 +430,39 @@ main (void)
 		read(STDIN_FILENO, &input, 1);
 		if (input == '\003' || input == '\004')
 			exit(0);
-		else if (input == '\033')
-			escapedsequence = 1;
-		else if (input == '[' && escapedsequence) {
-			puts("Complex inputs are not yet handled");
-			escapedsequence = 0;
-		}
 		else {
-			updateboard();
-			fputs("\033[2J\033[H", stdout);
-			DONTIMES(puts(scr[_IDX]), scrh);
+			switch (input) {
+			case '\033':
+				escapedsequence = 1;
+				break;
+			case '[':
+				puts("Complex inputs are not yet handled");
+				escapedsequence = 0;
+				break;
+			case 'h':
+				move(-1, 0);
+				break;
+			case 'j':
+				move(0, 1);
+				break;
+			case 'k':
+				move(0, -1);
+				break;
+			case 'l':
+				move(1, 0);
+				break;
+			case ' ':
+			        markcell(game.posx, game.posy, 0);
+				break;
+			case 'x':
+				markcell(game.posx, game.posy, 1);
+				break;
+			}
 		}
+
+		updateboard();
+		fputs("\033[2J\033[H", stdout);
+		DONTIMES(puts(scr[_IDX]), scrh);
 	}
 
 
