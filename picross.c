@@ -364,8 +364,19 @@ selectcol(int x)
 static void
 move(int x, int y)
 {
-	selectrow(game.posy + y);
-	selectcol(game.posx + x);
+	if (game.posy + y >= game.nrows)
+		selectrow(0);
+	else if (game.posy + y < 0)
+		selectrow(game.nrows - 1);
+	else
+		selectrow(game.posy + y);
+
+	if (game.posx + x >= game.ncols)
+		selectcol(0);
+	else if (game.posx + x < 0)
+		selectcol(game.ncols - 1);
+	else
+		selectcol(game.posx + x);
 }
 
 static void
