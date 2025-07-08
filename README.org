@@ -1,0 +1,22 @@
+* CLIcross
+Picross in the terminal! This project is still a WIP but is essentially functional.
+
+** installation
+There is an "install" make target but it currently does not work as the level path is hardcoded. Instead you can simply run =make= without any target to create the =clicross= executable, then run =./clicross=.
+
+** usage
+
+*** Controls:
+- `h', `j', `k', `l': move cursor
+- `m' or `<SPACE>': mark selected square
+- `x': reject (cross out) selected square
+
+*** Level syntax
+Levels are normal ascii text files that represent each row of the board with a line of text, one character per cell; a `0' corresponds to a blank square and a `1' to a filled one. The parser also ignores the first and last lines and columns, but they MUST be used. This is so in order to allow for prettification of level files (see =level.pic=).
+
+** Todo
+- Clean up code, especially row/column selection logic and var/fun naming
+- Support printing of hints in different radixes
+- Allow selection/passing of level files from command line (currently hardcoded)
+- Save times
+- Support inputs that begin with escape characters
