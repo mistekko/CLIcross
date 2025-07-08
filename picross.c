@@ -458,7 +458,7 @@ main (void)
 		}
 
 		updateboard();
-		fputs("\033[2J\033[H", stdout);
+		fputs("\033[H", stdout);
 		DONTIMES(puts(scr[_IDX]), scrh);
 		if (checkwin()) {
 			puts("Looks like we got a WINNER!");
