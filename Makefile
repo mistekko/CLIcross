@@ -11,13 +11,13 @@ all: clicross
 .c.o:
 	${CC} -c ${CFLAGS} $<
 
-picross: ${OBJ}
+clicross: ${OBJ}
 	${CC} -o $@ ${OBJ} ${LDFLAGS}
 
 install: all
 	mkdir -p ${PREFIX}/bin
-	chmod 755 clicross
-	cp -f picross ${PREFIX}/bin
+	chmod 775 clicross
+	cp -f clicross ${PREFIX}/bin
 
 clean:
 	rm *.o clicross
