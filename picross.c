@@ -38,16 +38,13 @@ struct Game {
 	int posx, posy;
 };
 
-static int ipow(int base, int power); // deprecated
 static inline Row binStoint(const char *s);
-static void inttobinS(char * buffer, Row r); // deprecated
 static inline int rowlength(Row r);
 static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
 static struct Hint *findcolhints(Row *level, int col);
 static int mosthints(struct Hint **hintarr, int nheads);
-static void printhints(struct Hint *first); // deprecated
-static void markcell(int x, int y, int reject); // modify s.t. board is updated accordingly
+static void markcell(int x, int y, int reject);
 static void parselevel(const char *path);
 static int checkwin(void);
 static void makeboard(void);
@@ -63,16 +60,6 @@ static char **scr;
 static int scrh, scrw, scrwchars;
 static struct termios inittermstate;
 
-static int
-ipow(int base, int pow)
-{
-	int r = 1;
-	for (int i = 0; i < pow; i++) {
-		r *= base;
-	}
-	return r;
-}
-
 static Row
 binStoint(const char *s)
 {
@@ -82,17 +69,6 @@ binStoint(const char *s)
                 r += *s++ - '0';
         }
         return r;
-}
-
-static void
-inttobinS(char *buffer, Row r)
-{
-	buffer += game.ncols;
-	*buffer = '\0';
-	while (r ^ 1) {
-		*--buffer = (r & 1) + '0';
-		r >>= 1;
-	}
 }
 
 static inline int
@@ -184,14 +160,6 @@ mosthints(struct Hint **hints, int nheads)
 		if (chainlength(hints[i]) > most)
 			most = chainlength(hints[i]);
 	return most;
-}
-
-static void
-printhints(struct Hint *first)
-{
-	for (struct Hint *this = first;	this; this = this->next)
-		printf("%d ", this->hint);
-	printf("\n");
 }
 
 static inline int
@@ -451,7 +419,8 @@ main (void)
 				escapedsequence = 1;
 				break;
 			case '[':
-				puts("Complex inputs are not yet handled");
+				if (escapedsequence)
+					puts("Complex inputs are not handled");
 				escapedsequence = 0;
 				break;
 			case 'h':
