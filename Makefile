@@ -3,10 +3,10 @@ CFLAGS = -std=c99 -Wall -Wextra -pedantic -D_POSIX_C_SOURCE=200809L -g
 LDFLAGS = ${LIBS}
 CC = cc
 
-SRC = picross.c
+SRC = clicross.c
 OBJ = ${SRC:.c=.o}
 
-all: picross
+all: clicross
 
 .c.o:
 	${CC} -c ${CFLAGS} $<
@@ -16,8 +16,8 @@ picross: ${OBJ}
 
 install: all
 	mkdir -p ${PREFIX}/bin
-	chmod 755 picross
+	chmod 755 clicross
 	cp -f picross ${PREFIX}/bin
 
 clean:
-	rm *.o picross
+	rm *.o clicross
