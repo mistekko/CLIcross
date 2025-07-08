@@ -404,9 +404,15 @@ setupterm() {
 }
 
 int
-main (void)
+main (int argc, char *argv[])
 {
-	parselevel("./level.pic");
+	if (argc == 1) {
+		puts("Level scanning and interactive selection will be"
+		     "implemented in a later update.");
+		exit(1);
+	} else
+		parselevel(argv[1]);
+
 	setupterm();
 	makeboard();
 	updateboard();
