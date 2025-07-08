@@ -49,6 +49,7 @@ static int mosthints(struct Hint **hintarr, int nheads);
 static void printhints(struct Hint *first); // deprecated
 static void markcell(int x, int y, int reject); // modify s.t. board is updated accordingly
 static void parselevel(const char *path);
+static int checkwin(void);
 static void makeboard(void);
 static void updateboard(void);
 static void selectrow(int y);
@@ -100,7 +101,7 @@ rowlength(Row r)
 	int length = 0;
 	while (r >> length)
 		length += 1;
-	/* 01 is represented as 1, so we use 101 and discard first digit */
+	/* Rows are represented w/ leading `1' to distinguish eg 1 and 01 */
 	return length - 1;
 }
 
@@ -257,11 +258,12 @@ parselevel(const char* levelpath)
 	game.colhints    = malloc(sizeof(void *) * game.ncols);
 	game.level       = malloc(sizeof(Row) * nrows);
 	game.filledmasks = malloc(sizeof(Row) * nrows);
+	for (int i = 0; i < game.nrows; i++)
+		game.filledmasks[i] = 1 << game.ncols;
 	game.rejectmasks = malloc(sizeof(Row) * nrows);
 
 	memcpy(game.rowhints, hints, sizeof(void *) * nrows);
 	memcpy(game.level, level, sizeof(void *) * nrows);
-	memset(game.filledmasks, 0, sizeof(Row) * nrows);
 	memset(game.rejectmasks, 0, sizeof(Row) * nrows);
 
 	for (int i = 0; i < game.ncols; i++)
@@ -269,6 +271,19 @@ parselevel(const char* levelpath)
 
 	game.maxcolhints = mosthints(game.colhints, game.ncols);
 	game.maxrowhints = mosthints(game.rowhints, game.nrows);
+}
+
+static int
+checkwin (void)
+{
+	int win = 1;
+	for (int i = 0; i < game.nrows; i++)
+		if (game.level[i] != game.filledmasks[i]) {
+			win = 0;
+			break;
+		}
+
+	return win;
 }
 
 static void
@@ -415,7 +430,7 @@ setupterm() {
 int
 main (void)
 {
-	parselevel("./level.pic");
+	parselevel("./level3.pic");
 	setupterm();
 	makeboard();
 	updateboard();
@@ -460,9 +475,15 @@ main (void)
 			}
 		}
 
-		updateboard();
-		fputs("\033[2J\033[H", stdout);
-		DONTIMES(puts(scr[_IDX]), scrh);
+		if (!checkwin()) {
+			updateboard();
+			fputs("\033[2J\033[H", stdout);
+			DONTIMES(puts(scr[_IDX]), scrh);
+		} else {
+			puts("Looks like we got a WINNER!");
+			exit(0);
+		}
+
 	}
 
 
