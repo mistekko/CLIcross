@@ -15,7 +15,7 @@
 #define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
 #define CHARATCELL(x, y) \
 	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
-	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? 'x' : '-'
+	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? ' ' : '-'
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
 #define SCRCC1(x, y) (scr[y] + (x) * 9)
 #define SCRCC2(x, y) (scr[y] + (x) * 9 + 5)
@@ -137,10 +137,7 @@ findcolhints(Row *level, int col)
 		} else
 			chain = 0;
 	}
-	int hintsreversed[nhints];
-	for (int i = 0; i < nhints; i++)
-		hintsreversed[i] = hints[nhints - 1 - i];
-	return chainhints(hintsreversed, nhints);
+	return chainhints(hints, nhints);
 }
 
 static inline int
@@ -409,7 +406,7 @@ setupterm() {
 int
 main (void)
 {
-	parselevel("./level3.pic");
+	parselevel("./level.pic");
 	setupterm();
 	makeboard();
 	updateboard();
@@ -452,14 +449,18 @@ main (void)
 			case 'x':
 				markcell(game.posx, game.posy, 1);
 				break;
+			case 'm':
+				markcell(game.posx, game.posy, 0);
+				break;
+			case 'q':
+				exit(1);
 			}
 		}
 
-		if (!checkwin()) {
-			updateboard();
-			fputs("\033[2J\033[H", stdout);
-			DONTIMES(puts(scr[_IDX]), scrh);
-		} else {
+		updateboard();
+		fputs("\033[2J\033[H", stdout);
+		DONTIMES(puts(scr[_IDX]), scrh);
+		if (checkwin()) {
 			puts("Looks like we got a WINNER!");
 			exit(0);
 		}
