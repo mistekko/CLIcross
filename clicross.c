@@ -12,13 +12,17 @@
 #define INVERT     "\033[7m"
 #define NEUTRAL    "\033[9m"
 
-#define DONTIMES(THING, N) for (int _IDX = 0; _IDX < N; _IDX++) { THING; }
+#define DONTIMES(thing, n) for (int _IDX = 0; _IDX < n; _IDX++) { thing; }
 #define CHARATCELL(x, y) \
 	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
 	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? ' ' : '-'
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
 #define SCRCC1(x, y) (scr[y] + (x) * 9)
 #define SCRCC2(x, y) (scr[y] + (x) * 9 + 5)
+#define BRDROW(y) (y * LINEPERROW + game.maxcolhints + 1)
+#define BRDCOL(x) (x * CHARPERCOL + game.maxrowhints * 3 + 3)
+#define BINDKEY(key, function) case key: function; break	\
+
 
 typedef unsigned long long int Row;
 
@@ -270,7 +274,7 @@ makeboard(void)
 
 	for (int i = 0; i < scrh; i++) {
 		for (int j = 0;
-		     j < rpreboardw + game.ncols*CHARPERCOL;
+		     j < scrwchars;
 		     j++) {
 			memcpy(scr[i] + j * 9, blankcell, sizeof(char) * 9);
 		}
@@ -316,9 +320,7 @@ updateboard(void)
 {
 	for (int i = 0; i < game.ncols; i++) {
 		for (int j = 0; j < game.nrows; j++) {
-			SCRCELL(i * CHARPERCOL + game.maxrowhints * 3 + 3,
-				j * LINEPERROW + game.maxcolhints + 1)
-				= CHARATCELL(i, j);
+			SCRCELL(BRDCOL(i), BRDROW(j)) = CHARATCELL(i, j);
 		}
 	}
 }
@@ -326,33 +328,37 @@ updateboard(void)
 static void
 selectrow(int y)
 {
-	memcpy(scr[game.posy * LINEPERROW + game.maxcolhints + 1], NEUTRAL, 4);
+	int newry = BRDROW(y);
+	int cellx = BRDCOL(game.posx);
+
+	memcpy(scr[BRDROW(game.posy)], NEUTRAL, 4);
 
 	game.posy = y;
-	memcpy(SCRCC1(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3, y * LINEPERROW + game.maxcolhints + 1), NEUTRAL, 4);
-	memcpy(SCRCC2(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3 + CHARPERCOL - 1, y * LINEPERROW + game.maxcolhints + 1),
-	       NEUTRAL, 4);
+	memcpy(SCRCC1(cellx, newry), NEUTRAL, 4);
+	memcpy(SCRCC2(cellx + CHARPERCOL - 1, newry), NEUTRAL, 4);
 
-	memcpy(scr[y * LINEPERROW + game.maxcolhints + 1], INVERT, 4);
-	memcpy(scr[y * LINEPERROW + game.maxcolhints + 1] + scrw - 4, RESET, 4);
+	memcpy(scr[newry], INVERT, 4);
+	memcpy(scr[newry] + scrw - 4, RESET, 4);
 }
 
 static void
 selectcol(int x)
 {
+	int oldcx = BRDCOL(game.posx);
+	int newcx = BRDCOL(x);
+
 	for (int i = 0; i < scrh; i++) {
-		if (i != game.posy * LINEPERROW + game.maxcolhints + 1) {
-			memcpy(SCRCC1(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3, i), NEUTRAL, 4);
-			memcpy(SCRCC2(game.posx * CHARPERCOL + game.maxrowhints * 3 + 3 + CHARPERCOL - 1, i),
-			       NEUTRAL, 4);
+		if (i != BRDROW(game.posy)) {
+			memcpy(SCRCC1(oldcx, i), NEUTRAL, 4);
+			memcpy(SCRCC2(oldcx + CHARPERCOL - 1, i), NEUTRAL, 4);
 		}
 	}
 
 	game.posx = x;
 	for (int i = 0; i < scrh; i++) {
-		if (i != game.posy * LINEPERROW + game.maxcolhints + 1) {
-			memcpy(SCRCC1(x * CHARPERCOL + game.maxrowhints * 3 + 3, i), INVERT, 4);
-			memcpy(SCRCC2(x * CHARPERCOL + game.maxrowhints * 3 + 3 + CHARPERCOL - 1, i),
+		if (i != BRDROW(game.posy)) {
+			memcpy(SCRCC1(newcx, i), INVERT, 4);
+			memcpy(SCRCC2(newcx + CHARPERCOL - 1, i),
 			       RESET, 4);
 		}
 	}
@@ -429,37 +435,19 @@ main (int argc, char *argv[])
 			exit(0);
 		else {
 			switch (input) {
-			case '\033':
-				escapedsequence = 1;
-				break;
-			case '[':
-				if (escapedsequence)
-					puts("Complex inputs are not handled");
-				escapedsequence = 0;
-				break;
-			case 'h':
-				move(-1, 0);
-				break;
-			case 'j':
-				move(0, 1);
-				break;
-			case 'k':
-				move(0, -1);
-				break;
-			case 'l':
-				move(1, 0);
-				break;
-			case ' ':
-			        markcell(game.posx, game.posy, 0);
-				break;
-			case 'x':
-				markcell(game.posx, game.posy, 1);
-				break;
-			case 'm':
-				markcell(game.posx, game.posy, 0);
-				break;
-			case 'q':
-				exit(1);
+				BINDKEY('\033', escapedsequence = 1);
+				BINDKEY('[',
+					if (escapedsequence)
+						puts("Complex inputs are not handled");
+					escapedsequence = 0);
+				BINDKEY('h', move(-1, 0));
+				BINDKEY('j', move(0, 1));
+				BINDKEY('k', move(0, -1));
+				BINDKEY('l', move(1, 0));
+				BINDKEY(' ', markcell(game.posx, game.posy, 0));
+				BINDKEY('x', markcell(game.posx, game.posy, 1));
+				BINDKEY('m', markcell(game.posx, game.posy, 0));
+				BINDKEY('q', exit(1));
 			}
 		}
 
