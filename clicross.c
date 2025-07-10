@@ -6,21 +6,22 @@
 #include <unistd.h>
 
 #define MAXROWS    100
-#define CHARPERCOL 2
-#define LINEPERROW 1
 #define RESET      "\033[0m"
 #define INVERT     "\033[7m"
 #define NEUTRAL    "\033[9m"
 
-#define DONTIMES(thing, n) for (int _IDX = 0; _IDX < n; _IDX++) { thing; }
-#define CHARATCELL(x, y) \
-	(filledmasks[y] >> (ncols - 1 - x) & 1) ? 'O' : \
+#define DONTIMES(thing, n)				      \
+	for (int TIMESDONE = 0; TIMESDONE < n; TIMESDONE++) { \
+		thing;					      \
+	}
+#define CHARATCELL(x, y)					\
+	(filledmasks[y] >> (ncols - 1 - x) & 1) ? 'O' :		\
 	(rejectmasks[y] >> (ncols - 1 - x) & 1) ? ' ' : '-'
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
 #define SCRCC1(x, y) (scr[y] + (x) * 9)
 #define SCRCC2(x, y) (scr[y] + (x) * 9 + 5)
-#define BRDROW(y) (y * LINEPERROW + maxcolhints + 1)
-#define BRDCOL(x) (x * CHARPERCOL + maxrowhints * 3 + 3)
+#define BRDROW(y) (y * lineperrow + maxcolhints + 1)
+#define BRDCOL(x) (x * charpercol + maxrowhints * 3 + 3)
 #define BINDKEY(key, function) case key: function; break
 
 typedef unsigned long long int Row;
@@ -31,7 +32,7 @@ struct Hint {
 };
 
 static inline Row binStoint(const char *s);
-static inline int rowlength(Row r);
+static inline int rowlen(Row r);
 static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
 static struct Hint *findcolhints(Row *level_l, int col);
@@ -47,6 +48,8 @@ static void move(int x, int y);
 static void setupterm(void);
 static void resetterm(void);
 
+static int charpercol = 2;
+static int lineperrow = 1;
 static struct Hint **rowhints;
 static struct Hint **colhints;
 static int nrows, ncols;
@@ -56,7 +59,7 @@ static Row *filledmasks;
 static Row *rejectmasks; /* Row masks of crossed-out cell */
 static int posx, posy;
 static char **scr;
-static int scrh, scrw, scrwchars;
+static int scrh, scrw;
 static struct termios inittermstate;
 
 static Row
@@ -71,11 +74,10 @@ binStoint(const char *s)
 }
 
 static inline int
-rowlength(Row r)
+rowlen(Row r)
 {
 	int length = 0;
-	while (r >> length)
-		length += 1;
+	while (r >> length++);
 	/* Rows are represented w/ leading `1' to distinguish eg 1 and 01 */
 	return length - 1;
 }
@@ -252,15 +254,15 @@ checkwin (void)
 static void
 makebrd(void)
 {
-	scrwchars = ncols * CHARPERCOL + maxrowhints * 3 + 3;
-	scrh = nrows * LINEPERROW + maxcolhints + 1;
+	int scrwchars = ncols * charpercol + maxrowhints * 3 + 3;
+	scrh = nrows * lineperrow + maxcolhints + 1;
 	scrw = scrwchars * 9;
 
 	int rpreboardw = maxrowhints * 3 + 3;
 
 	scr = malloc(sizeof(void *) * scrh);
 	int rowsize = sizeof(char) * scrw + 1;
-	DONTIMES(scr[_IDX] = malloc(rowsize); scr[_IDX][scrw] = '\0',
+	DONTIMES(scr[TIMESDONE] = malloc(rowsize); scr[TIMESDONE][scrw] = '\0',
 		 scrh);
 
 
@@ -274,8 +276,8 @@ makebrd(void)
 		}
 	}
 
-	DONTIMES(SCRCELL(_IDX, maxcolhints) = '-', scrwchars);
-	DONTIMES(SCRCELL(maxrowhints * 3 + 1, _IDX) = '|', scrh);
+	DONTIMES(SCRCELL(TIMESDONE, maxcolhints) = '-', scrwchars);
+	DONTIMES(SCRCELL(maxrowhints * 3 + 1, TIMESDONE) = '|', scrh);
 	SCRCELL(maxrowhints * 3 + 1, maxcolhints) = '+';
 
 
@@ -285,9 +287,9 @@ makebrd(void)
 	for (int i = 0; i < ncols; i++) {
 		hint = colhints[i];
 		for (int j = 0; hint; j++) {
-			sprintf(hintbuf, "%-*d", CHARPERCOL, hint->hint);
-			for (int k = 0; k < CHARPERCOL; k++) {
-				SCRCELL(rpreboardw + i * CHARPERCOL + k,
+			sprintf(hintbuf, "%-*d", charpercol, hint->hint);
+			for (int k = 0; k < charpercol; k++) {
+				SCRCELL(rpreboardw + i * charpercol + k,
 					maxcolhints - j - 1)
 					= hintbuf[k];
 			}
@@ -329,7 +331,7 @@ selrow(int y)
 
 	posy = y;
 	memcpy(SCRCC1(cellx, newry), NEUTRAL, 4);
-	memcpy(SCRCC2(cellx + CHARPERCOL - 1, newry), NEUTRAL, 4);
+	memcpy(SCRCC2(cellx + charpercol - 1, newry), NEUTRAL, 4);
 
 	memcpy(scr[newry], INVERT, 4);
 	memcpy(scr[newry] + scrw - 4, RESET, 4);
@@ -344,7 +346,7 @@ selcol(int x)
 	for (int i = 0; i < scrh; i++) {
 		if (i != BRDROW(posy)) {
 			memcpy(SCRCC1(oldcx, i), NEUTRAL, 4);
-			memcpy(SCRCC2(oldcx + CHARPERCOL - 1, i), NEUTRAL, 4);
+			memcpy(SCRCC2(oldcx + charpercol - 1, i), NEUTRAL, 4);
 		}
 	}
 
@@ -352,7 +354,7 @@ selcol(int x)
 	for (int i = 0; i < scrh; i++) {
 		if (i != BRDROW(posy)) {
 			memcpy(SCRCC1(newcx, i), INVERT, 4);
-			memcpy(SCRCC2(newcx + CHARPERCOL - 1, i),
+			memcpy(SCRCC2(newcx + charpercol - 1, i),
 			       RESET, 4);
 		}
 	}
@@ -419,7 +421,7 @@ main (int argc, char *argv[])
 	puts("moving...");
 	move(0, 0);
 	fputs("\033[2J\033[H", stdout);
-	DONTIMES(puts(scr[_IDX]), scrh);
+	DONTIMES(puts(scr[TIMESDONE]), scrh);
 
 	char input;
 	int esc = 0;
@@ -448,7 +450,7 @@ main (int argc, char *argv[])
 
 		updatebrd();
 		fputs("\033[H", stdout);
-		DONTIMES(puts(scr[_IDX]), scrh);
+		DONTIMES(puts(scr[TIMESDONE]), scrh);
 		if (checkwin()) {
 			puts("Looks like we got a WINNER!");
 			exit(0);
