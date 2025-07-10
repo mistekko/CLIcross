@@ -14,15 +14,14 @@
 
 #define DONTIMES(thing, n) for (int _IDX = 0; _IDX < n; _IDX++) { thing; }
 #define CHARATCELL(x, y) \
-	(game.filledmasks[y] >> (game.ncols - 1 - x) & 1) ? 'O' : \
-	(game.rejectmasks[y] >> (game.ncols - 1 - x) & 1) ? ' ' : '-'
+	(filledmasks[y] >> (ncols - 1 - x) & 1) ? 'O' : \
+	(rejectmasks[y] >> (ncols - 1 - x) & 1) ? ' ' : '-'
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
 #define SCRCC1(x, y) (scr[y] + (x) * 9)
 #define SCRCC2(x, y) (scr[y] + (x) * 9 + 5)
-#define BRDROW(y) (y * LINEPERROW + game.maxcolhints + 1)
-#define BRDCOL(x) (x * CHARPERCOL + game.maxrowhints * 3 + 3)
-#define BINDKEY(key, function) case key: function; break	\
-
+#define BRDROW(y) (y * LINEPERROW + maxcolhints + 1)
+#define BRDCOL(x) (x * CHARPERCOL + maxrowhints * 3 + 3)
+#define BINDKEY(key, function) case key: function; break
 
 typedef unsigned long long int Row;
 
@@ -31,35 +30,31 @@ struct Hint {
 	struct Hint* next;
 };
 
-struct Game {
-	struct Hint **rowhints;
-	struct Hint **colhints;
-	int nrows, ncols;
-	int maxrowhints, maxcolhints;
-	Row *level; /* level row data as parsed by parselevel */
-	Row *filledmasks;
-	Row *rejectmasks; /* Row masks of crossed-out cell */
-	int posx, posy;
-};
-
 static inline Row binStoint(const char *s);
 static inline int rowlength(Row r);
 static struct Hint *chainhints(int *hints, int nhints);
 static struct Hint *findrowhints(Row r);
-static struct Hint *findcolhints(Row *level, int col);
+static struct Hint *findcolhints(Row *level_l, int col);
 static int mosthints(struct Hint **hintarr, int nheads);
 static void markcell(int x, int y, int reject);
 static void parselevel(const char *path);
 static int checkwin(void);
-static void makeboard(void);
-static void updateboard(void);
-static void selectrow(int y);
-static void selectcol(int x);
+static void makebrd(void);
+static void updatebrd(void);
+static void selrow(int y);
+static void selcol(int x);
 static void move(int x, int y);
-static void setupterm();
-static void resetterm();
+static void setupterm(void);
+static void resetterm(void);
 
-static struct Game game = { .posx = 0, .posy = 0 };
+static struct Hint **rowhints;
+static struct Hint **colhints;
+static int nrows, ncols;
+static int maxrowhints, maxcolhints;
+static Row *level; /* level row data as parsed by parselevel */
+static Row *filledmasks;
+static Row *rejectmasks; /* Row masks of crossed-out cell */
+static int posx, posy;
 static char **scr;
 static int scrh, scrw, scrwchars;
 static struct termios inittermstate;
@@ -113,10 +108,10 @@ chainhints(int *hints, int nhints)
 struct Hint *
 findrowhints(Row r)
 {
-	int hints[game.ncols / 2 + 1];
+	int hints[ncols / 2 + 1];
 	int nhints = 0;
-	for (int i = 0, chain = 0; i < game.ncols; i++) {
-		if (r >> (game.ncols - 1 - i) & 1) {
+	for (int i = 0, chain = 0; i < ncols; i++) {
+		if (r >> (ncols - 1 - i) & 1) {
 			if (!chain)
 				nhints++;
 			chain++;
@@ -130,10 +125,10 @@ findrowhints(Row r)
 struct Hint *
 findcolhints(Row *level, int col)
 {
-	int hints[game.nrows / 2 + 1]; /* max. possible */
+	int hints[nrows / 2 + 1]; /* max. possible */
 	int nhints = 0;
-	for (int i = 0, chain = 0; i < game.nrows; i++) {
-		if (level[i] >> (game.ncols - col) & 1) {
+	for (int i = 0, chain = 0; i < nrows; i++) {
+		if (level[i] >> (ncols - col) & 1) {
 			if (!chain)
 				nhints++;
 			chain++;
@@ -166,17 +161,17 @@ mosthints(struct Hint **hints, int nheads)
 static inline int
 cellstatus(int x, int y)
 {
-	return ((game.filledmasks[y] >> (game.ncols - x)) & 1)
-		+ ((game.rejectmasks[y] >> (game.ncols - x)) & 1) * 2;
+	return ((filledmasks[y] >> (ncols - x)) & 1)
+		+ ((rejectmasks[y] >> (ncols - x)) & 1) * 2;
 }
 
 static inline void
 markcell(int x, int y, int reject)
 {
 	if (reject)
-		game.rejectmasks[y] ^= (1 << (game.ncols - x - 1));
+		rejectmasks[y] ^= (1 << (ncols - x - 1));
 	else
-		game.filledmasks[y] ^= (1 << (game.ncols - x - 1));
+		filledmasks[y] ^= (1 << (ncols - x - 1));
 }
 
 static void
@@ -186,68 +181,67 @@ parselevel(const char* levelpath)
 	if (!levelf)
 		exit(1);
 	struct Hint *hints[MAXROWS];
-	Row level[MAXROWS];
+	Row leveltmp[MAXROWS];
 	char *buffer = NULL;
 	char *line = NULL;
 	ssize_t llength = 0;
 	size_t n = 0;
-	int nrows = 0;
 	getline(&buffer, &n, levelf);
 	for (; (llength = getline(&buffer, &n, levelf)) != -1; nrows++) {
 		if (nrows == 0) {
 			/* 3: 1st and last char (see level syntax) and \n */
-			game.ncols = llength - 3;
+			ncols = llength - 3;
 			/* 1 + 1: leading '1' and terminating '\0'*/
 			line = malloc(sizeof(char *) * (llength - 3 + 1 + 1));
-			line[(llength - 3 + 1 + 1) - 1] = '\0';
 			if (!line)
 				exit(1);
+			line[(llength - 3 + 1 + 1) - 1] = '\0';
 			line[0] = '1';
 			line++;
-		} else if (llength - 3 > game.ncols) {
+		} else if (llength - 3 > ncols) {
 			printf("Warning: line %d is too long. "
 			       "Ignoring excess characters...\n",
 			       nrows + 1);
-		} else if (llength - 3 < game.ncols) {
+		} else if (llength - 3 < ncols) {
 			printf("Error: line %d is too short (%ld). "
 			       "Exiting...\n",
 			       nrows + 1, llength);
 			exit(1);
 		}
-		strncpy(line, buffer + 1, game.ncols);
+		strncpy(line, buffer + 1, ncols);
 		hints[nrows] = findrowhints(binStoint(line - 1));
-		level[nrows] = binStoint(line - 1);
+		leveltmp[nrows] = binStoint(line - 1);
 	}
 	free(buffer);
 	free(--line);
 
-	game.nrows = --nrows; /* ignore last row (see level syntax) */
+	--nrows; /* ignore last row (see level syntax) */
 
-	game.rowhints    = malloc(sizeof(void *) * nrows);
-	game.colhints    = malloc(sizeof(void *) * game.ncols);
-	game.level       = malloc(sizeof(Row) * nrows);
-	game.filledmasks = malloc(sizeof(Row) * nrows);
-	for (int i = 0; i < game.nrows; i++)
-		game.filledmasks[i] = 1 << game.ncols;
-	game.rejectmasks = malloc(sizeof(Row) * nrows);
+	rowhints    = malloc(sizeof(void *) * nrows);
+	colhints    = malloc(sizeof(void *) * ncols);
+	level       = malloc(sizeof(Row) * nrows);
+	filledmasks = malloc(sizeof(Row) * nrows);
+	for (int i = 0; i < nrows; i++)
+		filledmasks[i] = 1 << ncols;
+	rejectmasks = malloc(sizeof(Row) * nrows);
 
-	memcpy(game.rowhints, hints, sizeof(void *) * nrows);
-	memcpy(game.level, level, sizeof(void *) * nrows);
-	memset(game.rejectmasks, 0, sizeof(Row) * nrows);
+	memcpy(rowhints, hints, sizeof(void *) * nrows);
+	memcpy(level, leveltmp, sizeof(void *) * nrows);
+	memset(rejectmasks, 0, sizeof(Row) * nrows);
 
-	for (int i = 0; i < game.ncols; i++)
-		game.colhints[i] = findcolhints(game.level, i+1);
+	for (int i = 0; i < ncols; i++)
+		colhints[i] = findcolhints(level, i+1);
 
-	game.maxcolhints = mosthints(game.colhints, game.ncols);
-	game.maxrowhints = mosthints(game.rowhints, game.nrows);
+	maxcolhints = mosthints(colhints, ncols);
+	maxrowhints = mosthints(rowhints, nrows);
 }
 
 static int
 checkwin (void)
 {
 	int win = 1;
-	for (int i = 0; i < game.nrows; i++)
-		if (game.level[i] != game.filledmasks[i]) {
+	for (int i = 0; i < nrows; i++)
+		if (level[i] != filledmasks[i]) {
 			win = 0;
 			break;
 		}
@@ -256,13 +250,13 @@ checkwin (void)
 }
 
 static void
-makeboard(void)
+makebrd(void)
 {
-	scrwchars = game.ncols * CHARPERCOL + game.maxrowhints * 3 + 3;
-	scrh = game.nrows * LINEPERROW + game.maxcolhints + 1;
+	scrwchars = ncols * CHARPERCOL + maxrowhints * 3 + 3;
+	scrh = nrows * LINEPERROW + maxcolhints + 1;
 	scrw = scrwchars * 9;
 
-	int rpreboardw = game.maxrowhints * 3 + 3;
+	int rpreboardw = maxrowhints * 3 + 3;
 
 	scr = malloc(sizeof(void *) * scrh);
 	int rowsize = sizeof(char) * scrw + 1;
@@ -280,34 +274,34 @@ makeboard(void)
 		}
 	}
 
-	DONTIMES(SCRCELL(_IDX, game.maxcolhints) = '-', scrwchars);
-	DONTIMES(SCRCELL(game.maxrowhints * 3 + 1, _IDX) = '|', scrh);
-	SCRCELL(game.maxrowhints * 3 + 1, game.maxcolhints) = '+';
+	DONTIMES(SCRCELL(_IDX, maxcolhints) = '-', scrwchars);
+	DONTIMES(SCRCELL(maxrowhints * 3 + 1, _IDX) = '|', scrh);
+	SCRCELL(maxrowhints * 3 + 1, maxcolhints) = '+';
 
 
 	char hintbuf[4];
 	struct Hint *hint = NULL;
 
-	for (int i = 0; i < game.ncols; i++) {
-		hint = game.colhints[i];
+	for (int i = 0; i < ncols; i++) {
+		hint = colhints[i];
 		for (int j = 0; hint; j++) {
 			sprintf(hintbuf, "%-*d", CHARPERCOL, hint->hint);
 			for (int k = 0; k < CHARPERCOL; k++) {
 				SCRCELL(rpreboardw + i * CHARPERCOL + k,
-					game.maxcolhints - j - 1)
+					maxcolhints - j - 1)
 					= hintbuf[k];
 			}
 			hint = hint->next;
 		}
 	}
 
-	for (int i = 0; i < game.nrows; i++) {
-		hint = game.rowhints[i];
+	for (int i = 0; i < nrows; i++) {
+		hint = rowhints[i];
 		for (int j = 0; hint; j++ ) {
 			sprintf(hintbuf, "%3d", hint->hint);
 			for (int k = 0; k < 3; k++) {
-				SCRCELL((game.maxrowhints - j - 1) * 3 + k,
-					game.maxcolhints + 1 + i)
+				SCRCELL((maxrowhints - j - 1) * 3 + k,
+					maxcolhints + 1 + i)
 					= hintbuf[k];
 			}
 			hint = hint->next;
@@ -316,24 +310,24 @@ makeboard(void)
 }
 
 static void
-updateboard(void)
+updatebrd(void)
 {
-	for (int i = 0; i < game.ncols; i++) {
-		for (int j = 0; j < game.nrows; j++) {
+	for (int i = 0; i < ncols; i++) {
+		for (int j = 0; j < nrows; j++) {
 			SCRCELL(BRDCOL(i), BRDROW(j)) = CHARATCELL(i, j);
 		}
 	}
 }
 
 static void
-selectrow(int y)
+selrow(int y)
 {
 	int newry = BRDROW(y);
-	int cellx = BRDCOL(game.posx);
+	int cellx = BRDCOL(posx);
 
-	memcpy(scr[BRDROW(game.posy)], NEUTRAL, 4);
+	memcpy(scr[BRDROW(posy)], NEUTRAL, 4);
 
-	game.posy = y;
+	posy = y;
 	memcpy(SCRCC1(cellx, newry), NEUTRAL, 4);
 	memcpy(SCRCC2(cellx + CHARPERCOL - 1, newry), NEUTRAL, 4);
 
@@ -342,21 +336,21 @@ selectrow(int y)
 }
 
 static void
-selectcol(int x)
+selcol(int x)
 {
-	int oldcx = BRDCOL(game.posx);
+	int oldcx = BRDCOL(posx);
 	int newcx = BRDCOL(x);
 
 	for (int i = 0; i < scrh; i++) {
-		if (i != BRDROW(game.posy)) {
+		if (i != BRDROW(posy)) {
 			memcpy(SCRCC1(oldcx, i), NEUTRAL, 4);
 			memcpy(SCRCC2(oldcx + CHARPERCOL - 1, i), NEUTRAL, 4);
 		}
 	}
 
-	game.posx = x;
+	posx = x;
 	for (int i = 0; i < scrh; i++) {
-		if (i != BRDROW(game.posy)) {
+		if (i != BRDROW(posy)) {
 			memcpy(SCRCC1(newcx, i), INVERT, 4);
 			memcpy(SCRCC2(newcx + CHARPERCOL - 1, i),
 			       RESET, 4);
@@ -367,28 +361,28 @@ selectcol(int x)
 static void
 move(int x, int y)
 {
-	if (game.posy + y >= game.nrows)
-		selectrow(0);
-	else if (game.posy + y < 0)
-		selectrow(game.nrows - 1);
+	if (posy + y >= nrows)
+		selrow(0);
+	else if (posy + y < 0)
+		selrow(nrows - 1);
 	else
-		selectrow(game.posy + y);
+		selrow(posy + y);
 
-	if (game.posx + x >= game.ncols)
-		selectcol(0);
-	else if (game.posx + x < 0)
-		selectcol(game.ncols - 1);
+	if (posx + x >= ncols)
+		selcol(0);
+	else if (posx + x < 0)
+		selcol(ncols - 1);
 	else
-		selectcol(game.posx + x);
+		selcol(posx + x);
 }
 
 static void
-resetterm() {
+resetterm(void) {
 	tcsetattr(STDIN_FILENO, TCSANOW, &inittermstate);
 }
 
 static void
-setupterm() {
+setupterm(void) {
 	struct termios newattr;
 
 	errno = 0;
@@ -420,14 +414,15 @@ main (int argc, char *argv[])
 		parselevel(argv[1]);
 
 	setupterm();
-	makeboard();
-	updateboard();
+	makebrd();
+	updatebrd();
+	puts("moving...");
 	move(0, 0);
 	fputs("\033[2J\033[H", stdout);
 	DONTIMES(puts(scr[_IDX]), scrh);
 
 	char input;
-	int escapedsequence = 0;
+	int esc = 0;
 
 	while (1) {
 		read(STDIN_FILENO, &input, 1);
@@ -435,23 +430,23 @@ main (int argc, char *argv[])
 			exit(0);
 		else {
 			switch (input) {
-				BINDKEY('\033', escapedsequence = 1);
+				BINDKEY('\033', esc = 1);
 				BINDKEY('[',
-					if (escapedsequence)
+					if (esc)
 						puts("Complex inputs are not handled");
-					escapedsequence = 0);
+					esc = 0);
 				BINDKEY('h', move(-1, 0));
 				BINDKEY('j', move(0, 1));
 				BINDKEY('k', move(0, -1));
 				BINDKEY('l', move(1, 0));
-				BINDKEY(' ', markcell(game.posx, game.posy, 0));
-				BINDKEY('x', markcell(game.posx, game.posy, 1));
-				BINDKEY('m', markcell(game.posx, game.posy, 0));
+				BINDKEY(' ', markcell(posx, posy, 0));
+				BINDKEY('x', markcell(posx, posy, 1));
+				BINDKEY('m', markcell(posx, posy, 0));
 				BINDKEY('q', exit(1));
 			}
 		}
 
-		updateboard();
+		updatebrd();
 		fputs("\033[H", stdout);
 		DONTIMES(puts(scr[_IDX]), scrh);
 		if (checkwin()) {
