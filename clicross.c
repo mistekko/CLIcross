@@ -9,6 +9,8 @@
 #define RESET      "\033[0m"
 #define INVERT     "\033[7m"
 #define NEUTRAL    "\033[9m"
+#define CLEAR      "\033[2J"
+#define GOTOTOP    "\033[H"
 
 #define DONTIMES(thing, n)				      \
 	for (int TIMESDONE = 0; TIMESDONE < n; TIMESDONE++) { \
@@ -130,7 +132,7 @@ findcolhints(Row *level, int col)
 	int hints[nrows / 2 + 1]; /* max. possible */
 	int nhints = 0;
 	for (int i = 0, chain = 0; i < nrows; i++) {
-		if (level[i] >> (ncols - col) & 1) {
+		if (level[i] >> (ncols - col - 1) & 1) {
 			if (!chain)
 				nhints++;
 			chain++;
@@ -232,7 +234,7 @@ parselevel(const char* levelpath)
 	memset(rejectmasks, 0, sizeof(Row) * nrows);
 
 	for (int i = 0; i < ncols; i++)
-		colhints[i] = findcolhints(level, i+1);
+		colhints[i] = findcolhints(level, i);
 
 	maxcolhints = mosthints(colhints, ncols);
 	maxrowhints = mosthints(rowhints, nrows);
@@ -241,14 +243,46 @@ parselevel(const char* levelpath)
 static int
 checkwin (void)
 {
-	int win = 1;
-	for (int i = 0; i < nrows; i++)
-		if (level[i] != filledmasks[i]) {
-			win = 0;
-			break;
-		}
+	struct Hint *userhint;
+	struct Hint *masterhint;
+	// don't care1
+	int colwin = 1;
+	int rowwin = 1;
 
-	return win;
+	// abstract these two for-loops;
+	for (int i = 0; i < ncols; i++) {
+		masterhint = colhints[i];
+		for (userhint = findcolhints(filledmasks, i);
+		     userhint && masterhint;
+		     userhint = userhint->next, masterhint = masterhint->next
+		     ) {
+
+			if (userhint->hint == masterhint->hint) {
+			//     highlight hint on board;
+			} else
+				colwin = 0;
+		}
+		if (userhint || masterhint)
+			colwin = 0;
+	}
+
+	for (int i = 0; i < nrows; i++) {
+		masterhint = rowhints[i];
+		for (userhint = findrowhints(filledmasks[i]);
+		     userhint && masterhint;
+		     userhint = userhint->next, masterhint = masterhint->next
+		     ) {
+
+			if (userhint->hint == masterhint->hint) {
+			//     highlight hint on board;
+			} else
+				rowwin = 0;
+		}
+		if (userhint || masterhint)
+			rowwin = 0;
+
+	}
+	return colwin && rowwin;
 }
 
 static void
@@ -420,7 +454,7 @@ main (int argc, char *argv[])
 	updatebrd();
 	puts("moving...");
 	move(0, 0);
-	fputs("\033[2J\033[H", stdout);
+	fputs(CLEAR GOTOTOP, stdout);
 	DONTIMES(puts(scr[TIMESDONE]), scrh);
 
 	char input;
