@@ -26,6 +26,34 @@
 #define BRDROW(y) ((y) * lineperrow + maxcolhints + 1)
 #define BRDCOL(x) ((x) * charpercol + maxrowhints * 3 + 3)
 #define BINDKEY(key, function) case key: function; break
+#define CHECKANDMARKHINTS(NLINES,					\
+			  HINTARR,					\
+			  GETHEADF,					\
+			  CC1XYEXP,					\
+			  CC2XYEXP,					\
+			  WINVAR)					\
+	for (int i = 0; i < NLINES; i++) {				\
+		truehint = HINTARR[i];					\
+		testhinthead = GETHEADF;				\
+		testhint = testhinthead;				\
+		for (int j = 0;						\
+		     testhint && truehint;				\
+		     j++, testhint = testhint->next, truehint = truehint->next \
+		     ) {						\
+			if (testhint->hint == truehint->hint) {		\
+				memcpy(SCRCC1 CC1XYEXP, ENBOLDEN, 4);	\
+				memcpy(SCRCC2 CC2XYEXP, RESET, 4);	\
+			} else {					\
+				WINVAR = 0;				\
+				memcpy(SCRCC1 CC1XYEXP, NEUTRAL, 4);	\
+				memcpy(SCRCC2 CC2XYEXP, NEUTRAL, 4);	\
+			}						\
+		}							\
+		if (testhint || truehint)				\
+			WINVAR = 0;					\
+		free(testhinthead);					\
+	}
+
 
 typedef unsigned long long int Row;
 
@@ -245,64 +273,25 @@ static int
 checkwin (void)
 {
 	struct Hint *testhinthead;
-	struct Hint *testhint; // remember to free values assigned to this var
+	struct Hint *testhint;
 	struct Hint *truehint;
 	int colwin = 1;
 	int rowwin = 1;
 
-	// abstract these two for-loops;
-	for (int i = 0; i < ncols; i++) {
-		truehint = colhints[i];
-		testhinthead = findcolhints(filledmasks, i);
-		testhint = testhinthead;
-		for (int j = 0;
-		     testhint && truehint;
-		     j++, testhint = testhint->next, truehint = truehint->next
-		     ) {
-			if (testhint->hint == truehint->hint) {
-				// abstract this as well
-				memcpy(SCRCC1(BRDCOL(i), maxcolhints-j-1),
-				       ENBOLDEN, 4);
-				memcpy(SCRCC2(BRDCOL(i+1) - 1, maxcolhints-j-1),
-				       RESET, 4);
-			} else {
-				colwin = 0;
-				memcpy(SCRCC1(BRDCOL(i), maxcolhints-j-1),
-				       NEUTRAL, 4);
-				memcpy(SCRCC2(BRDCOL(i+1) - 1, maxcolhints-j-1),
-				       NEUTRAL, 4);
-			}
-		}
-		if (testhint || truehint)
-			colwin = 0;
-		free(testhinthead);
-	}
+	CHECKANDMARKHINTS(ncols,
+			  colhints,
+			  findcolhints(filledmasks, i),
+			  (BRDCOL(i), maxcolhints - j - 1),
+			  (BRDCOL(i+1) - 1, maxcolhints - j - 1),
+			  colwin);
 
-	for (int i = 0; i < nrows; i++) {
-		truehint = rowhints[i];
-		testhinthead = findrowhints(filledmasks[i]);
-		testhint = testhinthead;
-		for (int j = 0;
-		     testhint && truehint;
-		     j++, testhint = testhint->next, truehint = truehint->next
-		     ) {
-			if (testhint->hint == truehint->hint) {
-				memcpy(SCRCC1((maxrowhints - 1 -j) * 3, BRDROW(i)),
-				       ENBOLDEN, 4);
-				memcpy(SCRCC2((maxrowhints - j) * 3 - 1, BRDROW(i)),
-				       RESET, 4);
-			} else {
-				rowwin = 0;
-				memcpy(SCRCC1((maxrowhints - 1 -j) * 3, BRDROW(i)),
-				       NEUTRAL, 4);
-				memcpy(SCRCC2((maxrowhints - j) * 3 - 1, BRDROW(i)),
-				       NEUTRAL, 4);
-			}
-		}
-		if (testhint || truehint)
-			rowwin = 0;
-		free(testhinthead);
-	}
+	CHECKANDMARKHINTS(nrows,
+			  rowhints,
+			  findrowhints(filledmasks[i]),
+			  ((maxrowhints - 1 -j) * 3, BRDROW(i)),
+			  ((maxrowhints - j) * 3 - 1, BRDROW(i)),
+			  rowwin);
+
 	return colwin && rowwin;
 }
 
