@@ -1,10 +1,16 @@
 * CLIcross
-Picross in the terminal! This project is still a WIP but is essentially functional.
+Picross in the terminal! This project is still a WIP but is entirely functional. 
 
 ** installation
-There is an "install" make target but it currently does not work as the level path is hardcoded. Instead you can simply run =make= without any target to create the =clicross= executable, then run =./clicross=.
+There is an "install" make target; adjust =PREFIX= in =Makefile= to your liking and run =make install=. 
 
 ** usage
+
+*** Invocation
+After installing you should be able to invoke it with the program name and a path to a level file:
+#+BEGIN_SRC sh
+clicross path/to/level/levelname.pic
+#+END_SRC
 
 *** Controls:
 - `h', `j', `k', `l': move cursor
@@ -15,8 +21,10 @@ There is an "install" make target but it currently does not work as the level pa
 Levels are normal ascii text files that represent each row of the board with a line of text, one character per cell; a `0' corresponds to a blank square and a `1' to a filled one. The parser also ignores the first and last lines and columns, but they MUST be used. This is so in order to allow for prettification of level files (see =level.pic=).
 
 ** Todo
-- Clean up code, especially row/column selection logic and var/fun naming
 - Support printing of hints in different radixes
-- Allow selection/passing of level files from command line (currently hardcoded)
-- Save times
+- Improve level selection:
+  - add a bunch of official levels
+  - establish canonical level folder
+  - pretty interface for level selection
+- Add timer
 - Support inputs that begin with escape characters
