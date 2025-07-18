@@ -7,6 +7,7 @@
 
 #define MAXROWS    100
 #define RESET      "\033[0m"
+#define ENBOLDEN   "\033[1m"
 #define INVERT     "\033[7m"
 #define NEUTRAL    "\033[9m"
 #define CLEAR      "\033[2J"
@@ -22,8 +23,8 @@
 #define SCRCELL(x, y) scr[y][(x) * 9 + 4]
 #define SCRCC1(x, y) (scr[y] + (x) * 9)
 #define SCRCC2(x, y) (scr[y] + (x) * 9 + 5)
-#define BRDROW(y) (y * lineperrow + maxcolhints + 1)
-#define BRDCOL(x) (x * charpercol + maxrowhints * 3 + 3)
+#define BRDROW(y) ((y) * lineperrow + maxcolhints + 1)
+#define BRDCOL(x) ((x) * charpercol + maxrowhints * 3 + 3)
 #define BINDKEY(key, function) case key: function; break
 
 typedef unsigned long long int Row;
@@ -243,44 +244,64 @@ parselevel(const char* levelpath)
 static int
 checkwin (void)
 {
-	struct Hint *userhint;
-	struct Hint *masterhint;
-	// don't care1
+	struct Hint *testhinthead;
+	struct Hint *testhint; // remember to free values assigned to this var
+	struct Hint *truehint;
 	int colwin = 1;
 	int rowwin = 1;
 
 	// abstract these two for-loops;
 	for (int i = 0; i < ncols; i++) {
-		masterhint = colhints[i];
-		for (userhint = findcolhints(filledmasks, i);
-		     userhint && masterhint;
-		     userhint = userhint->next, masterhint = masterhint->next
+		truehint = colhints[i];
+		testhinthead = findcolhints(filledmasks, i);
+		testhint = testhinthead;
+		for (int j = 0;
+		     testhint && truehint;
+		     j++, testhint = testhint->next, truehint = truehint->next
 		     ) {
-
-			if (userhint->hint == masterhint->hint) {
-			//     highlight hint on board;
-			} else
+			if (testhint->hint == truehint->hint) {
+				// abstract this as well
+				memcpy(SCRCC1(BRDCOL(i), maxcolhints-j-1),
+				       ENBOLDEN, 4);
+				memcpy(SCRCC2(BRDCOL(i+1) - 1, maxcolhints-j-1),
+				       RESET, 4);
+			} else {
 				colwin = 0;
+				memcpy(SCRCC1(BRDCOL(i), maxcolhints-j-1),
+				       NEUTRAL, 4);
+				memcpy(SCRCC2(BRDCOL(i+1) - 1, maxcolhints-j-1),
+				       NEUTRAL, 4);
+			}
 		}
-		if (userhint || masterhint)
+		if (testhint || truehint)
 			colwin = 0;
+		free(testhinthead);
 	}
 
 	for (int i = 0; i < nrows; i++) {
-		masterhint = rowhints[i];
-		for (userhint = findrowhints(filledmasks[i]);
-		     userhint && masterhint;
-		     userhint = userhint->next, masterhint = masterhint->next
+		truehint = rowhints[i];
+		testhinthead = findrowhints(filledmasks[i]);
+		testhint = testhinthead;
+		for (int j = 0;
+		     testhint && truehint;
+		     j++, testhint = testhint->next, truehint = truehint->next
 		     ) {
-
-			if (userhint->hint == masterhint->hint) {
-			//     highlight hint on board;
-			} else
+			if (testhint->hint == truehint->hint) {
+				memcpy(SCRCC1((maxrowhints - 1 -j) * 3, BRDROW(i)),
+				       ENBOLDEN, 4);
+				memcpy(SCRCC2((maxrowhints - j) * 3 - 1, BRDROW(i)),
+				       RESET, 4);
+			} else {
 				rowwin = 0;
+				memcpy(SCRCC1((maxrowhints - 1 -j) * 3, BRDROW(i)),
+				       NEUTRAL, 4);
+				memcpy(SCRCC2((maxrowhints - j) * 3 - 1, BRDROW(i)),
+				       NEUTRAL, 4);
+			}
 		}
-		if (userhint || masterhint)
+		if (testhint || truehint)
 			rowwin = 0;
-
+		free(testhinthead);
 	}
 	return colwin && rowwin;
 }
@@ -361,13 +382,13 @@ selrow(int y)
 	int newry = BRDROW(y);
 	int cellx = BRDCOL(posx);
 
-	memcpy(scr[BRDROW(posy)], NEUTRAL, 4);
+	memcpy(SCRCC1(BRDCOL(0),BRDROW(posy)), NEUTRAL, 4);
 
 	posy = y;
 	memcpy(SCRCC1(cellx, newry), NEUTRAL, 4);
 	memcpy(SCRCC2(cellx + charpercol - 1, newry), NEUTRAL, 4);
 
-	memcpy(scr[newry], INVERT, 4);
+	memcpy(SCRCC1(BRDCOL(0), newry), INVERT, 4);
 	memcpy(scr[newry] + scrw - 4, RESET, 4);
 }
 
@@ -377,7 +398,7 @@ selcol(int x)
 	int oldcx = BRDCOL(posx);
 	int newcx = BRDCOL(x);
 
-	for (int i = 0; i < scrh; i++) {
+	for (int i = maxcolhints + 1; i < scrh; i++) {
 		if (i != BRDROW(posy)) {
 			memcpy(SCRCC1(oldcx, i), NEUTRAL, 4);
 			memcpy(SCRCC2(oldcx + charpercol - 1, i), NEUTRAL, 4);
@@ -385,7 +406,7 @@ selcol(int x)
 	}
 
 	posx = x;
-	for (int i = 0; i < scrh; i++) {
+	for (int i = maxcolhints + 1; i < scrh; i++) {
 		if (i != BRDROW(posy)) {
 			memcpy(SCRCC1(newcx, i), INVERT, 4);
 			memcpy(SCRCC2(newcx + charpercol - 1, i),
